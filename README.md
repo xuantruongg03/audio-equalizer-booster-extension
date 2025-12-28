@@ -1,6 +1,10 @@
 # Audio Equalizer & Booster
 
-A comprehensive Chrome Extension (Manifest V3) that enhances audio output from any active tab using the Web Audio API.
+<p align="center">
+  <img src="icons/icon.png" alt="Auto Form Filler Logo" width="128" height="128">
+</p>
+
+A comprehensive Chrome Extension that enhances audio output from any active tab using the Web Audio API.
 
 ## Features
 
@@ -37,28 +41,6 @@ Source → GainNode (Volume) → [10 BiquadFilters (EQ)] → DynamicsCompressor 
 3. Open Chrome and navigate to `chrome://extensions/`
 4. Enable "Developer mode" in the top right
 5. Click "Load unpacked" and select the extension directory
-
-## File Structure
-
-```
-audio-equalizer-booster/
-├── manifest.json           # Extension configuration
-├── background/
-│   └── background.js       # Service worker
-├── offscreen/
-│   ├── offscreen.html      # Offscreen document
-│   └── offscreen.js        # Audio processing engine
-├── popup/
-│   ├── popup.html          # Popup UI
-│   ├── popup.js            # UI logic
-│   └── style.css           # Dark theme styles
-└── icons/
-    ├── generate-icons.html # Icon generator
-    ├── icon16.png
-    ├── icon32.png
-    ├── icon48.png
-    └── icon128.png
-```
 
 ## Permissions
 
@@ -102,6 +84,16 @@ audio-equalizer-booster/
 - Chrome 116+ (required for Offscreen API)
 - Edge 116+ (Chromium-based)
 
-## License
+## 📄 License
 
-MIT License
+MIT License - Read file [LICENSE](LICENSE) to learn more.
+
+## 🤝 Support
+
+If you encounter any issues or have suggestions, please:
+- Create an [Issue](../../issues) on GitHub
+- Contact via email: lexuantruong098@gmail.com
+
+---
+
+Made with ❤️ by xuantruongg03
