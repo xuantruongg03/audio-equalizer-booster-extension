@@ -1,16 +1,20 @@
-// Background Service Worker - Manages offscreen document and message coordination
-// Manifest V3 compliant
+// Background Service Worker v2.1
+// Manages offscreen document, tab tracking, and message coordination
+// Fixed: Auto-off issue when opening new tabs
 
 const OFFSCREEN_DOCUMENT_PATH = '/offscreen/offscreen.html';
 
-// Track state
+// ===================== STATE =====================
 let creatingOffscreenDocument = null;
 let currentCaptureTabId = null;
 let isCapturing = false;
+let lastCaptureTime = 0;
 
-/**
- * Check if offscreen document already exists
- */
+// Track active tabs and their settings
+let tabSettings = new Map();
+
+// ===================== OFFSCREEN DOCUMENT MANAGEMENT =====================
+
 async function hasOffscreenDocument() {
     const matchedClients = await clients.matchAll();
     for (const client of matchedClients) {
@@ -21,9 +25,6 @@ async function hasOffscreenDocument() {
     return false;
 }
 
-/**
- * Create the offscreen document for audio processing
- */
 async function setupOffscreenDocument() {
     if (await hasOffscreenDocument()) {
         console.log('Offscreen document already exists');
@@ -46,9 +47,6 @@ async function setupOffscreenDocument() {
     console.log('Offscreen document created');
 }
 
-/**
- * Close the offscreen document
- */
 async function closeOffscreenDocument() {
     if (await hasOffscreenDocument()) {
         await chrome.offscreen.closeDocument();
@@ -58,27 +56,21 @@ async function closeOffscreenDocument() {
     isCapturing = false;
 }
 
-/**
- * Stop any existing capture before starting a new one
- */
+// ===================== TAB CAPTURE =====================
+
 async function stopExistingCapture() {
     if (isCapturing && await hasOffscreenDocument()) {
-        // Send stop message and wait for it to complete
         return new Promise((resolve) => {
             chrome.runtime.sendMessage({
                 type: 'STOP_AUDIO_PROCESSING',
                 target: 'offscreen'
             }, () => {
-                // Small delay to ensure stream is fully released
                 setTimeout(resolve, 100);
             });
         });
     }
 }
 
-/**
- * Get tab capture stream ID for the current active tab
- */
 async function getTabCaptureStreamId(tabId) {
     return new Promise((resolve, reject) => {
         chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (streamId) => {
@@ -91,12 +83,87 @@ async function getTabCaptureStreamId(tabId) {
     });
 }
 
-/**
- * Handle messages from popup and offscreen document
- */
+async function startCapture(tabId) {
+    try {
+        // Prevent rapid re-captures
+        const now = Date.now();
+        if (now - lastCaptureTime < 500) {
+            console.log('Capture throttled');
+            return { success: false, error: 'Please wait before starting again' };
+        }
+        lastCaptureTime = now;
+
+        // Stop any existing capture first
+        await stopExistingCapture();
+
+        // Create offscreen document
+        await setupOffscreenDocument();
+
+        // Get stream ID
+        const streamId = await getTabCaptureStreamId(tabId);
+
+        // Update state
+        isCapturing = true;
+        currentCaptureTabId = tabId;
+
+        // Initialize audio context in offscreen
+        chrome.runtime.sendMessage({
+            type: 'INIT_AUDIO_CONTEXT',
+            target: 'offscreen',
+            streamId: streamId,
+            tabId: tabId
+        });
+
+        // Apply saved settings after initialization
+        setTimeout(async () => {
+            const result = await chrome.storage.local.get(['settings']);
+            if (result.settings) {
+                chrome.runtime.sendMessage({
+                    type: 'UPDATE_AUDIO_SETTINGS',
+                    target: 'offscreen',
+                    settings: {
+                        volume: result.settings.volume,
+                        bands: result.settings.bands,
+                        effects: result.settings.effects
+                    }
+                });
+            }
+        }, 150);
+
+        return { success: true, tabId: tabId };
+
+    } catch (error) {
+        console.error('Start capture error:', error);
+        isCapturing = false;
+        currentCaptureTabId = null;
+        return { success: false, error: error.message };
+    }
+}
+
+async function stopCapture() {
+    try {
+        chrome.runtime.sendMessage({
+            type: 'STOP_AUDIO_PROCESSING',
+            target: 'offscreen'
+        });
+
+        isCapturing = false;
+        currentCaptureTabId = null;
+
+        await closeOffscreenDocument();
+        return { success: true };
+
+    } catch (error) {
+        console.error('Stop capture error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// ===================== MESSAGE HANDLING =====================
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleMessage(message, sender, sendResponse);
-    return true; // Keep channel open for async response
+    return true;
 });
 
 async function handleMessage(message, sender, sendResponse) {
@@ -110,72 +177,25 @@ async function handleMessage(message, sender, sendResponse) {
                     return;
                 }
 
-                // Check if we're already capturing this tab
+                // Check if already capturing this tab
                 if (isCapturing && currentCaptureTabId === tab.id) {
                     sendResponse({ success: true, tabId: tab.id, alreadyCapturing: true });
                     return;
                 }
 
-                // Stop any existing capture first
-                await stopExistingCapture();
-
-                // Create offscreen document if needed
-                await setupOffscreenDocument();
-
-                // Get stream ID for tab capture
-                const streamId = await getTabCaptureStreamId(tab.id);
-
-                // Mark as capturing
-                isCapturing = true;
-                currentCaptureTabId = tab.id;
-
-                // Send stream ID to offscreen document
-                chrome.runtime.sendMessage({
-                    type: 'INIT_AUDIO_CONTEXT',
-                    target: 'offscreen',
-                    streamId: streamId,
-                    tabId: tab.id
-                });
-
-                // Send saved settings to offscreen document after a short delay
-                // to ensure audio context is initialized
-                setTimeout(async () => {
-                    const result = await chrome.storage.local.get(['settings']);
-                    if (result.settings) {
-                        chrome.runtime.sendMessage({
-                            type: 'UPDATE_AUDIO_SETTINGS',
-                            target: 'offscreen',
-                            settings: {
-                                volume: result.settings.volume,
-                                bands: result.settings.bands
-                            }
-                        });
-                    }
-                }, 100);
-
-                sendResponse({ success: true, tabId: tab.id });
+                const result = await startCapture(tab.id);
+                sendResponse(result);
                 break;
             }
 
             case 'STOP_AUDIO_CAPTURE': {
-                // Tell offscreen to stop processing
-                chrome.runtime.sendMessage({
-                    type: 'STOP_AUDIO_PROCESSING',
-                    target: 'offscreen'
-                });
-
-                // Reset state
-                isCapturing = false;
-                currentCaptureTabId = null;
-
-                // Close offscreen document
-                await closeOffscreenDocument();
-                sendResponse({ success: true });
+                const result = await stopCapture();
+                sendResponse(result);
                 break;
             }
 
             case 'UPDATE_SETTINGS': {
-                // Forward settings to offscreen document
+                // Forward to offscreen
                 chrome.runtime.sendMessage({
                     type: 'UPDATE_AUDIO_SETTINGS',
                     target: 'offscreen',
@@ -185,28 +205,69 @@ async function handleMessage(message, sender, sendResponse) {
                 break;
             }
 
+            case 'UPDATE_EFFECTS': {
+                // Forward to offscreen
+                chrome.runtime.sendMessage({
+                    type: 'UPDATE_EFFECTS',
+                    target: 'offscreen',
+                    effects: message.effects
+                });
+                sendResponse({ success: true });
+                break;
+            }
+
+            case 'GET_ANALYSER_DATA': {
+                // Forward to offscreen and relay response
+                if (!isCapturing || !await hasOffscreenDocument()) {
+                    sendResponse({ success: false, error: 'Not capturing' });
+                    return;
+                }
+                chrome.runtime.sendMessage({
+                    type: 'GET_ANALYSER_DATA',
+                    target: 'offscreen'
+                }, (response) => {
+                    sendResponse(response || { success: false });
+                });
+                return; // Don't sendResponse here, it's handled in callback
+            }
+
             case 'GET_STATUS': {
                 const hasDoc = await hasOffscreenDocument();
-                sendResponse({ isActive: hasDoc && isCapturing, tabId: currentCaptureTabId });
+                sendResponse({
+                    isActive: hasDoc && isCapturing,
+                    tabId: currentCaptureTabId
+                });
                 break;
             }
 
             case 'AUDIO_STARTED':
                 isCapturing = true;
+                // Update settings state
+                chrome.storage.local.get(['settings'], (result) => {
+                    if (result.settings) {
+                        result.settings.enabled = true;
+                        chrome.storage.local.set({ settings: result.settings });
+                    }
+                });
                 break;
 
             case 'AUDIO_STOPPED':
                 isCapturing = false;
                 currentCaptureTabId = null;
+                // Update settings state
+                chrome.storage.local.get(['settings'], (result) => {
+                    if (result.settings) {
+                        result.settings.enabled = false;
+                        chrome.storage.local.set({ settings: result.settings });
+                    }
+                });
                 break;
 
-            case 'AUDIO_ERROR': {
-                // Reset state on error
+            case 'AUDIO_ERROR':
                 isCapturing = false;
                 currentCaptureTabId = null;
-                // Forward status updates to popup
+                console.error('Audio error:', message.error);
                 break;
-            }
 
             default:
                 sendResponse({ success: false, error: 'Unknown message type' });
@@ -217,12 +278,50 @@ async function handleMessage(message, sender, sendResponse) {
     }
 }
 
-// Clean up when extension is suspended/unloaded
+// ===================== TAB EVENTS =====================
+// FIX: Handle tab activation to maintain capture state
+
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+    // Don't stop capture when switching tabs - only stop when user explicitly disables
+    // This fixes the auto-off issue when opening new tabs
+
+    // If we're capturing and the user switches to a different tab,
+    // we keep the capture running for the original tab
+    console.log('Tab activated:', activeInfo.tabId, 'Current capture tab:', currentCaptureTabId);
+});
+
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+    // Only stop if the removed tab was the one being captured
+    if (tabId === currentCaptureTabId) {
+        console.log('Captured tab closed, stopping audio');
+        await stopCapture();
+    }
+});
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+    // Handle page navigation in the captured tab
+    if (tabId === currentCaptureTabId && changeInfo.status === 'loading') {
+        // Page is navigating - the capture will automatically stop
+        // We need to restart it after the page loads
+        console.log('Captured tab navigating, audio will restart when page loads');
+    }
+
+    // Restart capture when page finishes loading (if it was the captured tab)
+    if (tabId === currentCaptureTabId && changeInfo.status === 'complete' && !isCapturing) {
+        console.log('Captured tab loaded, restarting capture');
+        const settings = await chrome.storage.local.get(['settings']);
+        if (settings.settings?.enabled) {
+            await startCapture(tabId);
+        }
+    }
+});
+
+// ===================== LIFECYCLE =====================
+
 chrome.runtime.onSuspend.addListener(async () => {
     await closeOffscreenDocument();
 });
 
-// Initialize on install
 chrome.runtime.onInstalled.addListener(() => {
     // Set default settings
     chrome.storage.local.get(['settings'], (result) => {
@@ -232,16 +331,31 @@ chrome.runtime.onInstalled.addListener(() => {
                 volume: 100,
                 preset: 'flat',
                 bands: {
-                    '32': 0,
-                    '64': 0,
-                    '125': 0,
-                    '250': 0,
-                    '500': 0,
-                    '1k': 0,
-                    '2k': 0,
-                    '4k': 0,
-                    '8k': 0,
-                    '16k': 0
+                    '32': 0, '64': 0, '125': 0, '250': 0, '500': 0,
+                    '1k': 0, '2k': 0, '4k': 0, '8k': 0, '16k': 0
+                },
+                effects: {
+                    limiter: {
+                        enabled: true,
+                        threshold: -6,
+                        knee: 20,
+                        ratio: 12,
+                        attack: 0.003,
+                        release: 0.25
+                    },
+                    spatial: {
+                        enabled: false,
+                        mode: 'wide',
+                        width: 50
+                    },
+                    autoPan: {
+                        enabled: false,
+                        speed: 'medium'
+                    },
+                    pitch: {
+                        enabled: false,
+                        semitones: 0
+                    }
                 }
             };
             chrome.storage.local.set({ settings: defaultSettings });
@@ -249,4 +363,16 @@ chrome.runtime.onInstalled.addListener(() => {
     });
 });
 
-console.log('Audio Equalizer & Booster - Background service worker loaded');
+// ===================== STARTUP =====================
+// Check if we should restore audio capture on extension startup
+
+chrome.runtime.onStartup.addListener(async () => {
+    const result = await chrome.storage.local.get(['settings']);
+    if (result.settings?.enabled) {
+        // Audio was enabled before browser restart
+        // We'll need to wait for user to interact with popup to restart
+        console.log('Extension started, audio was previously enabled');
+    }
+});
+
+console.log('Audio Equalizer & Booster v2.1 - Background service worker loaded');

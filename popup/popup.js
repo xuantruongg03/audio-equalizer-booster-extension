@@ -1,350 +1,599 @@
-// Popup UI Controller
-// Manages user interface and sends commands to background script
+// Popup UI Controller v2.1
+// Clean UI with slider volume, realtime visualizer, 7D audio
 
-// EQ band configurations with descriptions
-const EQ_BANDS = [
-    { key: '32', label: '32', freq: 32, desc: 'Sub-bass: Rung sâu, cảm nhận bằng cơ thể' },
-    { key: '64', label: '64', freq: 64, desc: 'Bass: Trống bass, độ nặng của nhạc' },
-    { key: '125', label: '125', freq: 125, desc: 'Low-mid: Độ dày giọng nam, guitar' },
-    { key: '250', label: '250', freq: 250, desc: 'Warmth: Độ ấm áp, đầy đặn' },
-    { key: '500', label: '500', freq: 500, desc: 'Body: Thân âm thanh chính' },
-    { key: '1k', label: '1K', freq: 1000, desc: 'Presence: Giọng hát, độ hiện diện' },
-    { key: '2k', label: '2K', freq: 2000, desc: 'Clarity: Độ rõ ràng giọng nói' },
-    { key: '4k', label: '4K', freq: 4000, desc: 'Definition: Độ sắc nét, phụ âm s/t' },
-    { key: '8k', label: '8K', freq: 8000, desc: 'Brilliance: Cymbal, hi-hat, độ sáng' },
-    { key: '16k', label: '16K', freq: 16000, desc: 'Air: Không khí, độ thoáng' }
-];
+import { EQ_BANDS, PRESETS, getFlatBands, clonePresetBands } from './modules/presets.js';
+import { createKnob, updateKnobValue } from './modules/knob.js';
+import { DEFAULT_EFFECTS, createEffectsPanel } from './modules/effects.js';
+import { createVisualizer } from './modules/visualizer.js';
+import { SiteSettingsManager, getDomain, createSavedSitesList } from './modules/siteSettings.js';
 
-// Preset configurations (gain values in dB, -12 to +12)
-const PRESETS = {
-    'flat': {
-        '32': 0, '64': 0, '125': 0, '250': 0, '500': 0,
-        '1k': 0, '2k': 0, '4k': 0, '8k': 0, '16k': 0
-    },
-    'bass-boost': {
-        '32': 10, '64': 8, '125': 6, '250': 4, '500': 2,
-        '1k': 0, '2k': 0, '4k': 0, '8k': 0, '16k': 0
-    },
-    'vocal-booster': {
-        '32': -2, '64': -1, '125': 0, '250': 2, '500': 4,
-        '1k': 6, '2k': 6, '4k': 4, '8k': 2, '16k': 0
-    },
-    'treble-booster': {
-        '32': 0, '64': 0, '125': 0, '250': 0, '500': 2,
-        '1k': 3, '2k': 5, '4k': 7, '8k': 9, '16k': 10
-    }
-};
-
-// User saved presets (loaded from storage)
-let userPresets = {};
-
-// Current settings state
+// ===================== STATE =====================
 let currentSettings = {
     enabled: false,
     volume: 100,
     preset: 'flat',
-    bands: { ...PRESETS['flat'] }
+    bands: getFlatBands(),
+    effects: { ...DEFAULT_EFFECTS }
 };
 
-// DOM Elements
-let powerToggle;
-let statusIndicator;
-let statusText;
-let presetSelect;
-let volumeSlider;
-let volumeValue;
-let eqBandsContainer;
-let resetBtn;
-let savePresetBtn;
-let deletePresetBtn;
-let savePresetModal;
-let presetNameInput;
-let confirmSaveBtn;
-let cancelSaveBtn;
-let exportBtn;
-let importBtn;
-let importFileInput;
+let userPresets = {};
+let siteManager = new SiteSettingsManager();
+let currentDomain = null;
+let currentTabId = null;
 
-/**
- * Initialize the popup
- */
+// ===================== DOM ELEMENTS =====================
+let powerToggle, statusIndicator, statusText;
+let siteFavicon, siteDomain, saveSiteBtn;
+let volumeSlider, volumeDisplay;
+let presetSelect, eqKnobsContainer, flatEqBtn;
+let visualizerSection, effectsContainer;
+let userPresetsList, sitePresetsList;
+let savePresetBtn, savePresetModal, presetNameInput;
+let saveVolumeCheck, saveEffectsCheck, confirmSaveBtn, cancelSaveBtn;
+let exportBtn, importBtn, importFileInput;
+let settingsBtn, settingsModal, closeSettingsBtn;
+
+// Components
+let eqKnobs = {};
+let visualizer = null;
+let effectsPanel = null;
+
+// ===================== INITIALIZATION =====================
 async function init() {
-    // Get DOM elements
+    getDOMElements();
+    await getCurrentTabInfo();
+    await loadSettings();
+    await loadUserPresets();
+    await siteManager.load();
+    await applySiteSettings();
+    await checkStatus();
+
+    generateEQKnobs();
+    generateVisualizer();
+    generateEffectsPanel();
+    generateUserPresetsList();
+    generateSitePresetsList();
+    setupEventListeners();
+    updateUI();
+}
+
+function getDOMElements() {
     powerToggle = document.getElementById('powerToggle');
     statusIndicator = document.getElementById('statusIndicator');
     statusText = document.getElementById('statusText');
-    presetSelect = document.getElementById('presetSelect');
+    siteFavicon = document.getElementById('siteFavicon');
+    siteDomain = document.getElementById('siteDomain');
+    saveSiteBtn = document.getElementById('saveSiteBtn');
     volumeSlider = document.getElementById('volumeSlider');
-    volumeValue = document.getElementById('volumeValue');
-    eqBandsContainer = document.getElementById('eqBands');
-    resetBtn = document.getElementById('resetBtn');
+    volumeDisplay = document.getElementById('volumeDisplay');
+    presetSelect = document.getElementById('presetSelect');
+    eqKnobsContainer = document.getElementById('eqKnobs');
+    flatEqBtn = document.getElementById('flatEqBtn');
+    visualizerSection = document.getElementById('visualizerSection');
+    effectsContainer = document.getElementById('effectsContainer');
+    userPresetsList = document.getElementById('userPresetsList');
+    sitePresetsList = document.getElementById('sitePresetsList');
     savePresetBtn = document.getElementById('savePresetBtn');
-    deletePresetBtn = document.getElementById('deletePresetBtn');
     savePresetModal = document.getElementById('savePresetModal');
     presetNameInput = document.getElementById('presetNameInput');
+    saveVolumeCheck = document.getElementById('saveVolumeCheck');
+    saveEffectsCheck = document.getElementById('saveEffectsCheck');
     confirmSaveBtn = document.getElementById('confirmSaveBtn');
     cancelSaveBtn = document.getElementById('cancelSaveBtn');
     exportBtn = document.getElementById('exportBtn');
     importBtn = document.getElementById('importBtn');
     importFileInput = document.getElementById('importFileInput');
-
-    // Generate EQ band sliders
-    generateEQBands();
-
-    // Load saved settings and user presets
-    await loadSettings();
-    await loadUserPresets();
-
-    // Check current status
-    await checkStatus();
-
-    // Setup event listeners
-    setupEventListeners();
-
-    // Update UI to reflect current state
-    updateUI();
-    updatePresetDropdown();
+    settingsBtn = document.getElementById('settingsBtn');
+    settingsModal = document.getElementById('settingsModal');
+    closeSettingsBtn = document.getElementById('closeSettingsBtn');
 }
 
-/**
- * Generate the 10 EQ band sliders
- */
-function generateEQBands() {
-    eqBandsContainer.innerHTML = '';
-
-    EQ_BANDS.forEach(band => {
-        const bandDiv = document.createElement('div');
-        bandDiv.className = 'eq-band';
-        bandDiv.setAttribute('data-tooltip', band.desc);
-        bandDiv.innerHTML = `
-      <span class="eq-value" id="eq-value-${band.key}">0dB</span>
-      <input type="range" 
-             class="eq-slider" 
-             id="eq-${band.key}" 
-             data-band="${band.key}"
-             min="-12" 
-             max="12" 
-             value="0" 
-             title="${band.desc}"
-             orient="vertical">
-      <span class="eq-band-label">${band.label}</span>
-    `;
-        eqBandsContainer.appendChild(bandDiv);
+async function getCurrentTabInfo() {
+    return new Promise((resolve) => {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (tabs[0]) {
+                currentTabId = tabs[0].id;
+                currentDomain = getDomain(tabs[0].url);
+                if (currentDomain) {
+                    siteDomain.textContent = currentDomain;
+                    siteFavicon.src = `https://www.google.com/s2/favicons?domain=${currentDomain}&sz=32`;
+                    siteFavicon.style.display = 'block';
+                    siteFavicon.onerror = () => { siteFavicon.style.display = 'none'; };
+                }
+            }
+            resolve();
+        });
     });
 }
 
-/**
- * Setup all event listeners
- */
+// ===================== UI GENERATION =====================
+function generateEQKnobs() {
+    eqKnobsContainer.innerHTML = '';
+    EQ_BANDS.forEach(band => {
+        const value = currentSettings.bands[band.key] || 0;
+        const knob = createKnob({
+            id: `eq-${band.key}`,
+            label: band.label,
+            min: -12,
+            max: 12,
+            value: value,
+            size: 34,
+            onChange: (val) => handleEQChange(band.key, val)
+        });
+        eqKnobs[band.key] = knob;
+        eqKnobsContainer.appendChild(knob);
+    });
+}
+
+function generateVisualizer() {
+    visualizer = createVisualizer({
+        width: 376,
+        height: 50,
+        mode: 'bars',
+        barCount: 40
+    });
+    visualizerSection.appendChild(visualizer);
+
+    // Start realtime updates if active
+    if (currentSettings.enabled) {
+        startVisualizerUpdates();
+    }
+}
+
+function generateEffectsPanel() {
+    effectsPanel = createEffectsPanel(currentSettings.effects, handleEffectsChange);
+    effectsContainer.appendChild(effectsPanel);
+}
+
+function generateUserPresetsList() {
+    userPresetsList.innerHTML = '';
+    const presets = Object.entries(userPresets);
+
+    if (presets.length === 0) {
+        userPresetsList.innerHTML = `
+            <div class="no-presets">
+                <span>📭</span>
+                <p>Chưa có preset. Nhấn + để lưu.</p>
+            </div>
+        `;
+        return;
+    }
+
+    presets.forEach(([key, preset]) => {
+        const item = document.createElement('div');
+        item.className = 'preset-item';
+        item.innerHTML = `
+            <div class="preset-item-info">
+                <span class="preset-item-name">${preset.name}</span>
+            </div>
+            <button class="preset-item-delete" data-key="${key}">×</button>
+        `;
+        item.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('preset-item-delete')) {
+                applyUserPreset(key);
+            }
+        });
+        item.querySelector('.preset-item-delete').addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteUserPreset(key);
+        });
+        userPresetsList.appendChild(item);
+    });
+}
+
+function generateSitePresetsList() {
+    const list = createSavedSitesList(
+        siteManager,
+        (domain) => {
+            const settings = siteManager.getForSite(domain);
+            if (settings) applySettings(settings);
+        },
+        async (domain) => {
+            await siteManager.removeForSite(domain);
+            generateSitePresetsList();
+        }
+    );
+    sitePresetsList.innerHTML = '';
+    sitePresetsList.appendChild(list);
+}
+
+// ===================== EVENT LISTENERS =====================
 function setupEventListeners() {
     // Power toggle
     powerToggle.addEventListener('change', handlePowerToggle);
 
-    // Preset selector
-    presetSelect.addEventListener('change', handlePresetChange);
-
-    // Volume slider
-    volumeSlider.addEventListener('input', handleVolumeChange);
-
-    // EQ band sliders - input and wheel events
-    document.querySelectorAll('.eq-slider').forEach(slider => {
-        slider.addEventListener('input', handleEQChange);
-
-        // Mouse wheel support
-        slider.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const delta = e.deltaY > 0 ? -1 : 1; // Scroll up = increase
-            const newValue = Math.max(-12, Math.min(12, parseInt(slider.value) + delta));
-            slider.value = newValue;
-            handleEQChange({ target: slider });
+    // Tabs
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
         });
     });
 
-    // Reset button
-    resetBtn.addEventListener('click', handleReset);
+    // Volume slider
+    volumeSlider.addEventListener('input', handleVolumeSlider);
 
-    // Save/Delete preset buttons
-    savePresetBtn.addEventListener('click', openSavePresetModal);
-    deletePresetBtn.addEventListener('click', handleDeletePreset);
-    confirmSaveBtn.addEventListener('click', handleSavePreset);
-    cancelSaveBtn.addEventListener('click', closeSavePresetModal);
-
-    // Export/Import buttons
-    exportBtn.addEventListener('click', handleExport);
-    importBtn.addEventListener('click', () => importFileInput.click());
-    importFileInput.addEventListener('change', handleImport);
-
-    // Close modal on overlay click
-    savePresetModal.addEventListener('click', (e) => {
-        if (e.target === savePresetModal) closeSavePresetModal();
+    // Volume marks (quick jump)
+    document.querySelectorAll('.volume-mark').forEach(mark => {
+        mark.addEventListener('click', () => {
+            const value = parseInt(mark.dataset.value);
+            volumeSlider.value = value;
+            handleVolumeSlider();
+        });
     });
 
-    // Enter key to save preset
+    // Preset select
+    presetSelect.addEventListener('change', handlePresetChange);
+
+    // Flat EQ
+    flatEqBtn.addEventListener('click', handleFlatEQ);
+
+    // Save site
+    saveSiteBtn.addEventListener('click', handleSaveSite);
+
+    // Preset management
+    savePresetBtn.addEventListener('click', () => {
+        presetNameInput.value = '';
+        savePresetModal.style.display = 'flex';
+        presetNameInput.focus();
+    });
+    confirmSaveBtn.addEventListener('click', handleSavePreset);
+    cancelSaveBtn.addEventListener('click', () => savePresetModal.style.display = 'none');
+    savePresetModal.addEventListener('click', (e) => {
+        if (e.target === savePresetModal) savePresetModal.style.display = 'none';
+    });
     presetNameInput.addEventListener('keyup', (e) => {
         if (e.key === 'Enter') handleSavePreset();
     });
 
-    // Listen for status updates from background
+    // Export/Import
+    exportBtn.addEventListener('click', handleExport);
+    importBtn.addEventListener('click', () => importFileInput.click());
+    importFileInput.addEventListener('change', handleImport);
+
+    // Settings
+    settingsBtn.addEventListener('click', () => settingsModal.style.display = 'flex');
+    closeSettingsBtn.addEventListener('click', () => settingsModal.style.display = 'none');
+    settingsModal.addEventListener('click', (e) => {
+        if (e.target === settingsModal) settingsModal.style.display = 'none';
+    });
+
+    // Background messages
     chrome.runtime.onMessage.addListener(handleBackgroundMessage);
 }
 
-/**
- * Load settings from storage
- */
-async function loadSettings() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get(['settings'], (result) => {
-            if (result.settings) {
-                currentSettings = { ...currentSettings, ...result.settings };
+// ===================== HANDLERS =====================
+async function handlePowerToggle() {
+    const enabled = powerToggle.checked;
+    currentSettings.enabled = enabled;
+
+    if (enabled) {
+        updateStatus(false);
+        statusText.textContent = 'Starting...';
+
+        chrome.runtime.sendMessage({ type: 'START_AUDIO_CAPTURE' }, async (response) => {
+            if (response && response.success) {
+                updateStatus(true);
+                await sendSettingsUpdate();
+                startVisualizerUpdates();
+            } else {
+                powerToggle.checked = false;
+                currentSettings.enabled = false;
+                updateStatus(false);
+                statusText.textContent = 'Error';
             }
-            resolve();
         });
-    });
-}
-
-/**
- * Load user presets from storage
- */
-async function loadUserPresets() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get(['userPresets'], (result) => {
-            if (result.userPresets) {
-                userPresets = result.userPresets;
-            }
-            resolve();
+    } else {
+        chrome.runtime.sendMessage({ type: 'STOP_AUDIO_CAPTURE' }, () => {
+            updateStatus(false);
+            stopVisualizerUpdates();
         });
-    });
-}
-
-/**
- * Save user presets to storage
- */
-async function saveUserPresets() {
-    return new Promise((resolve) => {
-        chrome.storage.local.set({ userPresets }, resolve);
-    });
-}
-
-/**
- * Update preset dropdown with user presets
- */
-function updatePresetDropdown() {
-    // Remove old user presets from dropdown
-    const existingUserOptions = presetSelect.querySelectorAll('option[data-user="true"]');
-    existingUserOptions.forEach(opt => opt.remove());
-
-    // Add user presets before "Custom" option
-    const customOption = presetSelect.querySelector('option[value="custom"]');
-
-    Object.keys(userPresets).forEach(key => {
-        const option = document.createElement('option');
-        option.value = `user_${key}`;
-        option.textContent = `⭐ ${userPresets[key].name}`;
-        option.setAttribute('data-user', 'true');
-        presetSelect.insertBefore(option, customOption);
-    });
-
-    // Update delete button visibility
-    updateDeleteButtonVisibility();
-}
-
-/**
- * Update delete button visibility based on selected preset
- */
-function updateDeleteButtonVisibility() {
-    const isUserPreset = presetSelect.value.startsWith('user_');
-    deletePresetBtn.style.display = isUserPreset ? 'flex' : 'none';
-}
-
-/**
- * Open save preset modal
- */
-function openSavePresetModal() {
-    presetNameInput.value = '';
-    savePresetModal.style.display = 'flex';
-    presetNameInput.focus();
-}
-
-/**
- * Close save preset modal
- */
-function closeSavePresetModal() {
-    savePresetModal.style.display = 'none';
-}
-
-/**
- * Handle save preset
- */
-async function handleSavePreset() {
-    const name = presetNameInput.value.trim();
-    if (!name) {
-        presetNameInput.focus();
-        return;
     }
 
-    // Generate unique key
-    const key = Date.now().toString();
-
-    // Save preset
-    userPresets[key] = {
-        name: name,
-        bands: { ...currentSettings.bands },
-        volume: currentSettings.volume
-    };
-
-    await saveUserPresets();
-    updatePresetDropdown();
-
-    // Select the new preset
-    currentSettings.preset = `user_${key}`;
-    presetSelect.value = `user_${key}`;
     await saveSettings();
-
-    closeSavePresetModal();
-    updateDeleteButtonVisibility();
 }
 
-/**
- * Handle delete preset
- */
-async function handleDeletePreset() {
-    const selectedValue = presetSelect.value;
-    if (!selectedValue.startsWith('user_')) return;
+function handleVolumeSlider() {
+    const value = parseInt(volumeSlider.value);
+    currentSettings.volume = value;
 
-    const key = selectedValue.replace('user_', '');
-    const presetName = userPresets[key]?.name || 'preset';
+    // Update display
+    volumeDisplay.textContent = `${value}%`;
 
-    if (confirm(`Xóa preset "${presetName}"?`)) {
-        delete userPresets[key];
-        await saveUserPresets();
-        updatePresetDropdown();
+    // Update slider track color
+    const percent = (value / 800) * 100;
+    volumeSlider.style.setProperty('--volume-percent', `${percent}%`);
 
-        // Reset to flat
-        currentSettings.preset = 'flat';
-        currentSettings.bands = { ...PRESETS['flat'] };
-        presetSelect.value = 'flat';
-        updateUI();
+    // Update marks
+    document.querySelectorAll('.volume-mark').forEach(mark => {
+        const markValue = parseInt(mark.dataset.value);
+        mark.classList.toggle('active', markValue === value);
+    });
+
+    saveSettings();
+    sendSettingsUpdate();
+}
+
+async function handleEQChange(band, value) {
+    currentSettings.bands[band] = value;
+    currentSettings.preset = 'custom';
+    presetSelect.value = 'custom';
+    await saveSettings();
+    await sendSettingsUpdate();
+}
+
+async function handlePresetChange() {
+    const preset = presetSelect.value;
+    if (preset === 'custom') return;
+
+    if (PRESETS[preset]) {
+        currentSettings.preset = preset;
+        currentSettings.bands = clonePresetBands(preset);
+        updateEQKnobs();
         await saveSettings();
         await sendSettingsUpdate();
     }
 }
 
-/**
- * Save settings to storage
- */
+async function handleFlatEQ() {
+    currentSettings.preset = 'flat';
+    currentSettings.bands = getFlatBands();
+    presetSelect.value = 'flat';
+    updateEQKnobs();
+    await saveSettings();
+    await sendSettingsUpdate();
+}
+
+async function handleEffectsChange(effects) {
+    currentSettings.effects = { ...effects };
+    await saveSettings();
+    await sendEffectsUpdate();
+}
+
+async function handleSaveSite() {
+    if (!currentDomain) return;
+    await siteManager.saveForSite(currentDomain, currentSettings);
+    generateSitePresetsList();
+    saveSiteBtn.textContent = '✅';
+    setTimeout(() => { saveSiteBtn.textContent = '💾'; }, 1500);
+}
+
+async function handleSavePreset() {
+    const name = presetNameInput.value.trim();
+    if (!name) return;
+
+    const key = Date.now().toString();
+    userPresets[key] = {
+        name: name,
+        bands: { ...currentSettings.bands },
+        volume: saveVolumeCheck.checked ? currentSettings.volume : undefined,
+        effects: saveEffectsCheck.checked ? { ...currentSettings.effects } : undefined,
+        savedAt: Date.now()
+    };
+
+    await saveUserPresets();
+    generateUserPresetsList();
+    savePresetModal.style.display = 'none';
+}
+
+async function applyUserPreset(key) {
+    const preset = userPresets[key];
+    if (!preset) return;
+
+    currentSettings.bands = { ...preset.bands };
+    if (preset.volume !== undefined) {
+        currentSettings.volume = preset.volume;
+        volumeSlider.value = preset.volume;
+        handleVolumeSlider();
+    }
+    if (preset.effects) {
+        currentSettings.effects = { ...preset.effects };
+        effectsPanel.setEffects(preset.effects);
+    }
+
+    currentSettings.preset = `user_${key}`;
+    updateEQKnobs();
+    await saveSettings();
+    await sendSettingsUpdate();
+}
+
+async function deleteUserPreset(key) {
+    if (!confirm(`Xóa preset "${userPresets[key]?.name}"?`)) return;
+    delete userPresets[key];
+    await saveUserPresets();
+    generateUserPresetsList();
+}
+
+async function applySiteSettings() {
+    if (!currentDomain || !siteManager.autoApply) return;
+    const siteSettings = siteManager.getForSite(currentDomain);
+    if (siteSettings) applySettings(siteSettings);
+}
+
+function applySettings(settings) {
+    if (settings.bands) {
+        currentSettings.bands = { ...settings.bands };
+        updateEQKnobs();
+    }
+    if (settings.volume !== undefined) {
+        currentSettings.volume = settings.volume;
+        volumeSlider.value = settings.volume;
+        handleVolumeSlider();
+    }
+    if (settings.effects) {
+        currentSettings.effects = { ...settings.effects };
+        effectsPanel?.setEffects(settings.effects);
+    }
+    if (settings.preset) {
+        currentSettings.preset = settings.preset;
+        presetSelect.value = PRESETS[settings.preset] ? settings.preset : 'custom';
+    }
+    saveSettings();
+    sendSettingsUpdate();
+}
+
+function handleBackgroundMessage(message) {
+    switch (message.type) {
+        case 'AUDIO_STARTED':
+            updateStatus(true);
+            startVisualizerUpdates();
+            break;
+        case 'AUDIO_STOPPED':
+            updateStatus(false);
+            currentSettings.enabled = false;
+            powerToggle.checked = false;
+            stopVisualizerUpdates();
+            break;
+        case 'AUDIO_ERROR':
+            updateStatus(false);
+            statusText.textContent = 'Error';
+            currentSettings.enabled = false;
+            powerToggle.checked = false;
+            break;
+    }
+}
+
+// ===================== VISUALIZER =====================
+let visualizerInterval = null;
+
+function startVisualizerUpdates() {
+    if (visualizerInterval) return;
+
+    visualizerInterval = setInterval(() => {
+        chrome.runtime.sendMessage({ type: 'GET_ANALYSER_DATA' }, (response) => {
+            if (response && response.success && response.data) {
+                visualizer?.updateData(response.data);
+            }
+        });
+    }, 50); // 20fps
+}
+
+function stopVisualizerUpdates() {
+    if (visualizerInterval) {
+        clearInterval(visualizerInterval);
+        visualizerInterval = null;
+    }
+}
+
+// ===================== IMPORT/EXPORT =====================
+function encodeConfig(config) {
+    const json = JSON.stringify(config);
+    const base64 = btoa(unescape(encodeURIComponent(json)));
+    return 'AEQ2:' + base64.split('').map(c => String.fromCharCode(c.charCodeAt(0) + 3)).join('');
+}
+
+function decodeConfig(encoded) {
+    try {
+        if (encoded.startsWith('AEQ2:') || encoded.startsWith('AEQ1:')) {
+            const base64 = encoded.substring(5).split('').map(c => String.fromCharCode(c.charCodeAt(0) - 3)).join('');
+            return JSON.parse(decodeURIComponent(escape(atob(base64))));
+        }
+        return JSON.parse(encoded);
+    } catch (e) {
+        throw new Error('Không thể đọc file');
+    }
+}
+
+function handleExport() {
+    const exportData = {
+        version: '2.1',
+        exportDate: new Date().toISOString(),
+        settings: {
+            volume: currentSettings.volume,
+            preset: currentSettings.preset,
+            bands: { ...currentSettings.bands },
+            effects: { ...currentSettings.effects }
+        },
+        userPresets: { ...userPresets },
+        siteSettings: siteManager.siteSettings
+    };
+
+    const blob = new Blob([encodeConfig(exportData)], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `audio-eq-${Date.now()}.aeq`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+async function handleImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    event.target.value = '';
+
+    try {
+        const text = await file.text();
+        const data = decodeConfig(text);
+
+        if (!data.settings?.bands) throw new Error('Dữ liệu không hợp lệ');
+        if (!confirm('Import cấu hình?')) return;
+
+        applySettings(data.settings);
+
+        if (data.userPresets) {
+            Object.entries(data.userPresets).forEach(([key, preset]) => {
+                userPresets[`imp_${Date.now()}_${key}`] = preset;
+            });
+            await saveUserPresets();
+            generateUserPresetsList();
+        }
+
+        if (data.siteSettings) {
+            Object.assign(siteManager.siteSettings, data.siteSettings);
+            await siteManager.save();
+            generateSitePresetsList();
+        }
+
+        alert('✅ Import thành công!');
+    } catch (error) {
+        alert('❌ ' + error.message);
+    }
+}
+
+// ===================== STORAGE =====================
+async function loadSettings() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['settings'], (result) => {
+            if (result.settings) {
+                currentSettings = {
+                    ...currentSettings,
+                    ...result.settings,
+                    effects: { ...DEFAULT_EFFECTS, ...(result.settings.effects || {}) }
+                };
+            }
+            resolve();
+        });
+    });
+}
+
 async function saveSettings() {
     return new Promise((resolve) => {
         chrome.storage.local.set({ settings: currentSettings }, resolve);
     });
 }
 
-/**
- * Check if audio processing is currently active
- */
+async function loadUserPresets() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['userPresets'], (result) => {
+            if (result.userPresets) userPresets = result.userPresets;
+            resolve();
+        });
+    });
+}
+
+async function saveUserPresets() {
+    return new Promise((resolve) => {
+        chrome.storage.local.set({ userPresets }, resolve);
+    });
+}
+
+// ===================== STATUS & COMMUNICATION =====================
 async function checkStatus() {
     return new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
-            if (response && response.isActive) {
+            if (response?.isActive) {
                 currentSettings.enabled = true;
             }
             resolve();
@@ -352,386 +601,63 @@ async function checkStatus() {
     });
 }
 
-/**
- * Update UI to reflect current settings
- */
-function updateUI() {
-    // Power toggle
-    powerToggle.checked = currentSettings.enabled;
-
-    // Status indicator
-    updateStatus(currentSettings.enabled);
-
-    // Preset
-    presetSelect.value = currentSettings.preset;
-
-    // Volume
-    volumeSlider.value = currentSettings.volume;
-    volumeValue.textContent = `${currentSettings.volume}%`;
-    updateVolumeSliderBackground();
-
-    // EQ bands
-    EQ_BANDS.forEach(band => {
-        const slider = document.getElementById(`eq-${band.key}`);
-        if (slider) {
-            const value = currentSettings.bands[band.key] || 0;
-            slider.value = value;
-            updateEQSliderBackground(slider);
-            updateEQValueDisplay(band.key, value);
-        }
-    });
-
-    // Update preset dropdown (check if current matches any preset)
-    checkPresetMatch();
-}
-
-/**
- * Update status indicator
- */
 function updateStatus(isActive) {
     statusIndicator.className = 'status-indicator ' + (isActive ? 'active' : '');
     statusText.textContent = isActive ? 'Active' : 'Off';
 }
 
-/**
- * Handle power toggle
- */
-async function handlePowerToggle() {
-    const enabled = powerToggle.checked;
-    currentSettings.enabled = enabled;
-
-    if (enabled) {
-        // Start audio capture
-        updateStatus(false);
-        statusText.textContent = 'Starting...';
-
-        chrome.runtime.sendMessage({ type: 'START_AUDIO_CAPTURE' }, async (response) => {
-            if (response && response.success) {
-                updateStatus(true);
-                // Send current settings to audio processor
-                await sendSettingsUpdate();
-            } else {
-                powerToggle.checked = false;
-                currentSettings.enabled = false;
-                updateStatus(false);
-                statusText.textContent = 'Error: ' + (response?.error || 'Unknown error');
-            }
-        });
-    } else {
-        // Stop audio capture
-        chrome.runtime.sendMessage({ type: 'STOP_AUDIO_CAPTURE' }, () => {
-            updateStatus(false);
-        });
-    }
-
-    await saveSettings();
-}
-
-/**
- * Handle preset change
- */
-async function handlePresetChange() {
-    const preset = presetSelect.value;
-
-    // Handle built-in presets
-    if (preset !== 'custom' && PRESETS[preset]) {
-        currentSettings.preset = preset;
-        currentSettings.bands = { ...PRESETS[preset] };
-        updateUI();
-        await saveSettings();
-        await sendSettingsUpdate();
-    }
-    // Handle user presets
-    else if (preset.startsWith('user_')) {
-        const key = preset.replace('user_', '');
-        if (userPresets[key]) {
-            currentSettings.preset = preset;
-            currentSettings.bands = { ...userPresets[key].bands };
-            if (userPresets[key].volume !== undefined) {
-                currentSettings.volume = userPresets[key].volume;
-            }
-            updateUI();
-            await saveSettings();
-            await sendSettingsUpdate();
-        }
-    }
-
-    updateDeleteButtonVisibility();
-}
-
-/**
- * Handle volume slider change
- */
-async function handleVolumeChange() {
-    const volume = parseInt(volumeSlider.value);
-    currentSettings.volume = volume;
-    volumeValue.textContent = `${volume}%`;
-    updateVolumeSliderBackground();
-
-    await saveSettings();
-    await sendSettingsUpdate();
-}
-
-/**
- * Handle EQ band slider change
- */
-async function handleEQChange(event) {
-    const slider = event.target;
-    const band = slider.dataset.band;
-    const value = parseInt(slider.value);
-
-    currentSettings.bands[band] = value;
-    updateEQSliderBackground(slider);
-    updateEQValueDisplay(band, value);
-
-    // Switch to custom preset when user manually adjusts
-    currentSettings.preset = 'custom';
-    presetSelect.value = 'custom';
-
-    await saveSettings();
-    await sendSettingsUpdate();
-}
-
-/**
- * Update EQ value display
- */
-function updateEQValueDisplay(band, value) {
-    const valueEl = document.getElementById(`eq-value-${band}`);
-    if (valueEl) {
-        const sign = value > 0 ? '+' : '';
-        valueEl.textContent = `${sign}${value}dB`;
-        valueEl.className = 'eq-value' + (value > 0 ? ' boost' : value < 0 ? ' cut' : '');
-    }
-}
-
-/**
- * Handle reset button
- */
-async function handleReset() {
-    currentSettings.preset = 'flat';
-    currentSettings.bands = { ...PRESETS['flat'] };
-    currentSettings.volume = 100;
-
-    updateUI();
-    await saveSettings();
-    await sendSettingsUpdate();
-}
-
-/**
- * Send settings update to background/offscreen
- */
 async function sendSettingsUpdate() {
     if (!currentSettings.enabled) return;
-
     chrome.runtime.sendMessage({
         type: 'UPDATE_SETTINGS',
         settings: {
             volume: currentSettings.volume,
-            bands: currentSettings.bands
+            bands: currentSettings.bands,
+            effects: currentSettings.effects
         }
     });
 }
 
-/**
- * Handle messages from background script
- */
-function handleBackgroundMessage(message) {
-    switch (message.type) {
-        case 'AUDIO_STARTED':
-            updateStatus(true);
-            break;
-        case 'AUDIO_STOPPED':
-            updateStatus(false);
-            currentSettings.enabled = false;
-            powerToggle.checked = false;
-            break;
-        case 'AUDIO_ERROR':
-            updateStatus(false);
-            statusText.textContent = 'Error: ' + message.error;
-            currentSettings.enabled = false;
-            powerToggle.checked = false;
-            break;
+async function sendEffectsUpdate() {
+    if (!currentSettings.enabled) return;
+    chrome.runtime.sendMessage({
+        type: 'UPDATE_EFFECTS',
+        effects: currentSettings.effects
+    });
+}
+
+// ===================== UI UPDATES =====================
+function updateUI() {
+    powerToggle.checked = currentSettings.enabled;
+    updateStatus(currentSettings.enabled);
+
+    // Volume
+    volumeSlider.value = currentSettings.volume;
+    volumeDisplay.textContent = `${currentSettings.volume}%`;
+    const percent = (currentSettings.volume / 800) * 100;
+    volumeSlider.style.setProperty('--volume-percent', `${percent}%`);
+
+    // Preset
+    presetSelect.value = PRESETS[currentSettings.preset] ? currentSettings.preset : 'custom';
+
+    // EQ
+    updateEQKnobs();
+
+    // Visualizer
+    if (currentSettings.enabled) {
+        startVisualizerUpdates();
     }
 }
 
-/**
- * Check if current EQ matches any preset
- */
-function checkPresetMatch() {
-    for (const [presetName, presetBands] of Object.entries(PRESETS)) {
-        const matches = EQ_BANDS.every(band =>
-            currentSettings.bands[band.key] === presetBands[band.key]
-        );
-        if (matches) {
-            currentSettings.preset = presetName;
-            presetSelect.value = presetName;
-            return;
+function updateEQKnobs() {
+    EQ_BANDS.forEach(band => {
+        const knobContainer = eqKnobs[band.key];
+        if (knobContainer) {
+            const value = currentSettings.bands[band.key] || 0;
+            updateKnobValue(knobContainer, value, -12, 12);
         }
-    }
-    currentSettings.preset = 'custom';
-    presetSelect.value = 'custom';
+    });
 }
 
-/**
- * Update volume slider background gradient
- */
-function updateVolumeSliderBackground() {
-    const value = volumeSlider.value;
-    const max = volumeSlider.max;
-    const percentage = (value / max) * 100;
-
-    let color = '#4ade80'; // Green
-    if (value > 200) color = '#f59e0b'; // Orange
-    if (value > 300) color = '#ef4444'; // Red
-
-    volumeSlider.style.background = `linear-gradient(to right, ${color} 0%, ${color} ${percentage}%, #374151 ${percentage}%, #374151 100%)`;
-}
-
-/**
- * Update EQ slider background gradient
- * Slider now uses fixed gradient, thumb position shows value
- */
-function updateEQSliderBackground(slider) {
-    // Fixed gradient: green (top/boost) -> gray (middle/0dB) -> orange (bottom/cut)
-    // No need to change background dynamically - thumb position is sufficient
-}
-
-/**
- * Encode config to obfuscated string
- * Uses Base64 + simple character shift for obfuscation
- */
-function encodeConfig(config) {
-    const json = JSON.stringify(config);
-    // Base64 encode
-    const base64 = btoa(unescape(encodeURIComponent(json)));
-    // Simple character shift (Caesar cipher +3)
-    const shifted = base64.split('').map(char => {
-        const code = char.charCodeAt(0);
-        return String.fromCharCode(code + 3);
-    }).join('');
-    // Add header
-    return 'AEQ1:' + shifted;
-}
-
-/**
- * Decode obfuscated config string
- */
-function decodeConfig(encoded) {
-    try {
-        // Check header
-        if (!encoded.startsWith('AEQ1:')) {
-            throw new Error('Invalid format');
-        }
-        // Remove header
-        const shifted = encoded.substring(5);
-        // Reverse character shift
-        const base64 = shifted.split('').map(char => {
-            const code = char.charCodeAt(0);
-            return String.fromCharCode(code - 3);
-        }).join('');
-        // Base64 decode
-        const json = decodeURIComponent(escape(atob(base64)));
-        return JSON.parse(json);
-    } catch (e) {
-        throw new Error('Không thể đọc file cấu hình. File có thể bị hỏng.');
-    }
-}
-
-/**
- * Handle export configuration
- */
-function handleExport() {
-    const exportData = {
-        version: '1.0',
-        exportDate: new Date().toISOString(),
-        settings: {
-            volume: currentSettings.volume,
-            preset: currentSettings.preset,
-            bands: { ...currentSettings.bands }
-        },
-        userPresets: { ...userPresets }
-    };
-
-    const encoded = encodeConfig(exportData);
-
-    // Create download
-    const blob = new Blob([encoded], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `audio-eq-config-${Date.now()}.aeq`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
-
-/**
- * Handle import configuration
- */
-async function handleImport(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    // Reset input so same file can be selected again
-    event.target.value = '';
-
-    try {
-        const text = await file.text();
-        const data = decodeConfig(text);
-
-        // Validate data
-        if (!data.settings || !data.settings.bands) {
-            throw new Error('Dữ liệu không hợp lệ');
-        }
-
-        // Confirm import
-        const hasUserPresets = data.userPresets && Object.keys(data.userPresets).length > 0;
-        const message = hasUserPresets
-            ? `Import cấu hình và ${Object.keys(data.userPresets).length} preset tùy chỉnh?`
-            : 'Import cấu hình EQ?';
-
-        if (!confirm(message)) return;
-
-        // Apply settings
-        if (data.settings.volume !== undefined) {
-            currentSettings.volume = Math.max(0, Math.min(400, data.settings.volume));
-        }
-        if (data.settings.bands) {
-            EQ_BANDS.forEach(band => {
-                if (data.settings.bands[band.key] !== undefined) {
-                    currentSettings.bands[band.key] = Math.max(-12, Math.min(12, data.settings.bands[band.key]));
-                }
-            });
-        }
-        currentSettings.preset = 'custom';
-
-        // Merge user presets (new presets from file)
-        if (hasUserPresets) {
-            Object.entries(data.userPresets).forEach(([key, preset]) => {
-                // Generate new key to avoid conflicts
-                const newKey = `imported_${Date.now()}_${key}`;
-                userPresets[newKey] = {
-                    name: preset.name || 'Imported',
-                    bands: { ...preset.bands },
-                    volume: preset.volume
-                };
-            });
-            await saveUserPresets();
-        }
-
-        // Update UI and save
-        updatePresetDropdown();
-        updateUI();
-        await saveSettings();
-        await sendSettingsUpdate();
-
-        alert('✅ Import thành công!');
-
-    } catch (error) {
-        alert('❌ ' + error.message);
-    }
-}
-
-// Initialize on DOM ready
+// ===================== INIT =====================
 document.addEventListener('DOMContentLoaded', init);
