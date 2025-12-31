@@ -295,6 +295,13 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
     if (tabId === currentCaptureTabId) {
         console.log('Captured tab closed, stopping audio');
         await stopCapture();
+        // Update storage to reflect disabled state
+        chrome.storage.local.get(['settings'], (result) => {
+            if (result.settings) {
+                result.settings.enabled = false;
+                chrome.storage.local.set({ settings: result.settings });
+            }
+        });
     }
 });
 
@@ -363,6 +370,73 @@ chrome.runtime.onInstalled.addListener(() => {
     });
 });
 
+// ===================== KEYBOARD SHORTCUTS =====================
+chrome.commands.onCommand.addListener(async (command) => {
+    console.log('Keyboard shortcut:', command);
+    const result = await chrome.storage.local.get(['settings']);
+    let settings = result.settings || {
+        enabled: false,
+        volume: 100,
+        preset: 'flat',
+        bands: { '32': 0, '64': 0, '125': 0, '250': 0, '500': 0, '1k': 0, '2k': 0, '4k': 0, '8k': 0, '16k': 0 }
+    };
+
+    switch (command) {
+        case 'toggle-power':
+            settings.enabled = !settings.enabled;
+            if (settings.enabled) {
+                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (tab?.id) await startCapture(tab.id);
+            } else {
+                await stopCapture();
+            }
+            break;
+
+        case 'volume-up':
+            settings.volume = Math.min(800, settings.volume + 10);
+            if (isCapturing) {
+                chrome.runtime.sendMessage({
+                    type: 'UPDATE_AUDIO_SETTINGS',
+                    target: 'offscreen',
+                    settings: { volume: settings.volume, bands: settings.bands }
+                });
+            }
+            break;
+
+        case 'volume-down':
+            settings.volume = Math.max(0, settings.volume - 10);
+            if (isCapturing) {
+                chrome.runtime.sendMessage({
+                    type: 'UPDATE_AUDIO_SETTINGS',
+                    target: 'offscreen',
+                    settings: { volume: settings.volume, bands: settings.bands }
+                });
+            }
+            break;
+
+        case 'reset-flat':
+            settings.preset = 'flat';
+            settings.bands = { '32': 0, '64': 0, '125': 0, '250': 0, '500': 0, '1k': 0, '2k': 0, '4k': 0, '8k': 0, '16k': 0 };
+            if (isCapturing) {
+                chrome.runtime.sendMessage({
+                    type: 'UPDATE_AUDIO_SETTINGS',
+                    target: 'offscreen',
+                    settings: { volume: settings.volume, bands: settings.bands }
+                });
+            }
+            break;
+    }
+
+    await chrome.storage.local.set({ settings });
+
+    // Show notification badge
+    const badgeText = command === 'toggle-power' ? (settings.enabled ? 'ON' : 'OFF') :
+        command === 'volume-up' || command === 'volume-down' ? `${settings.volume}%` : 'FLAT';
+    chrome.action.setBadgeText({ text: badgeText });
+    chrome.action.setBadgeBackgroundColor({ color: settings.enabled ? '#22c55e' : '#6b7280' });
+    setTimeout(() => chrome.action.setBadgeText({ text: '' }), 1500);
+});
+
 // ===================== STARTUP =====================
 // Check if we should restore audio capture on extension startup
 
@@ -375,4 +449,4 @@ chrome.runtime.onStartup.addListener(async () => {
     }
 });
 
-console.log('Audio Equalizer & Booster v2.1 - Background service worker loaded');
+console.log('Audio Equalizer & Booster v2.3 - Background service worker loaded');

@@ -452,6 +452,21 @@ function handleBackgroundMessage(message) {
             currentSettings.enabled = false;
             powerToggle.checked = false;
             break;
+        case 'PRESET_CHANGED':
+            // Handle preset change from keyboard shortcut
+            if (message.preset && PRESETS[message.preset]) {
+                currentSettings.preset = message.preset;
+                currentSettings.bands = clonePresetBands(message.preset);
+                presetSelect.value = message.preset;
+                updateEQKnobs();
+                saveSettings();
+                sendSettingsUpdate();
+            }
+            break;
+        case 'SETTINGS_UPDATED':
+            // Reload settings from storage (for keyboard shortcut changes)
+            loadSettings().then(() => updateUI());
+            break;
     }
 }
 
@@ -592,9 +607,19 @@ async function saveUserPresets() {
 // ===================== STATUS & COMMUNICATION =====================
 async function checkStatus() {
     return new Promise((resolve) => {
-        chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
+        chrome.runtime.sendMessage({ type: 'GET_STATUS' }, async (response) => {
             if (response?.isActive) {
                 currentSettings.enabled = true;
+            } else {
+                // Not active - ensure state is synced
+                currentSettings.enabled = false;
+                // Update storage to match actual state
+                chrome.storage.local.get(['settings'], (result) => {
+                    if (result.settings && result.settings.enabled) {
+                        result.settings.enabled = false;
+                        chrome.storage.local.set({ settings: result.settings });
+                    }
+                });
             }
             resolve();
         });

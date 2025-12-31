@@ -15,7 +15,7 @@
           <path d="M12 3V21M6 7V17M18 7V17M3 10V14M21 10V14M9 5V19M15 5V19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
         <span>Audio EQ Pro</span>
-        <span class="version">v2.1</span>
+        <span class="version">v2.3</span>
       </div>
       <div class="header-controls">
         <button class="btn-icon-small" id="settingsBtn" title="Cài đặt">
@@ -252,6 +252,15 @@
               <option value="800" selected>800%</option>
             </select>
           </div>
+          <div class="setting-item keyboard-shortcuts">
+            <span>⌨️ Keyboard Shortcuts</span>
+          </div>
+          <div class="shortcuts-list">
+            <div class="shortcut-item"><kbd>Alt+E</kbd> Toggle On/Off</div>
+            <div class="shortcut-item"><kbd>Alt+↑/↓</kbd> Volume ±10%</div>
+            <div class="shortcut-item"><kbd>Alt+←/→</kbd> Prev/Next Preset</div>
+            <div class="shortcut-item"><kbd>Alt+0</kbd> Reset Flat</div>
+          </div>
         </div>
         <div class="modal-actions">
           <button class="btn btn-primary" id="closeSettingsBtn">Đóng</button>
@@ -261,15 +270,20 @@
 
     <!-- Footer -->
     <footer class="footer">
-      <a href="https://anytools.online/browser-extensions" target="_blank" class="footer-link">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-          <polyline points="15 3 21 3 21 9"/>
-          <line x1="10" y1="14" x2="21" y2="3"/>
-        </svg>
-        More Tools
-      </a>
-      <div class="footer-credit">Made with <span class="heart">❤️</span> by xuantruongg03</div>
+      <div class="shortcuts-hint">
+        <span>⌨️</span> <kbd>Alt+E</kbd> On/Off · <kbd>Alt+↑↓</kbd> Volume · <kbd>Alt+0</kbd> Reset
+      </div>
+      <div class="footer-links">
+        <a href="https://anytools.online/browser-extensions" target="_blank" class="footer-link">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+          More Tools
+        </a>
+        <span class="footer-credit">Made with <span class="heart">❤️</span> by xuantruongg03</span>
+      </div>
     </footer>
   </div>
 

@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "Audio Equalizer & Booster Pro",
-    "version": "2.2.0",
-    "description": "Professional 10-band equalizer with 30+ presets, volume boost up to 800%, 7D auto-pan, spatial audio, per-site settings, and real-time visualizer.",
+    "version": "2.3.0",
+    "description": "Professional 10-band equalizer with 30+ presets, volume boost up to 800%, 7D auto-pan, spatial audio, per-site settings.",
     "author": "Audio Tools",
     "permissions": ["tabCapture", "offscreen", "storage", "activeTab", "tabs"],
     "action": {
@@ -24,6 +24,36 @@
     "background": {
         "service_worker": "background/background.js",
         "type": "module"
+    },
+    "commands": {
+        "toggle-power": {
+            "suggested_key": {
+                "default": "Alt+E",
+                "mac": "Alt+E"
+            },
+            "description": "Toggle equalizer on/off"
+        },
+        "volume-up": {
+            "suggested_key": {
+                "default": "Alt+Up",
+                "mac": "Alt+Up"
+            },
+            "description": "Increase volume by 10%"
+        },
+        "volume-down": {
+            "suggested_key": {
+                "default": "Alt+Down",
+                "mac": "Alt+Down"
+            },
+            "description": "Decrease volume by 10%"
+        },
+        "reset-flat": {
+            "suggested_key": {
+                "default": "Alt+0",
+                "mac": "Alt+0"
+            },
+            "description": "Reset to flat EQ"
+        }
     },
     "minimum_chrome_version": "116"
 }
