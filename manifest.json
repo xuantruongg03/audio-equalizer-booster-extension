@@ -28,29 +28,29 @@
     "commands": {
         "toggle-power": {
             "suggested_key": {
-                "default": "Alt+E",
-                "mac": "Alt+E"
+                "default": "Ctrl+Shift+E",
+                "mac": "Command+Shift+E"
             },
             "description": "Toggle equalizer on/off"
         },
         "volume-up": {
             "suggested_key": {
-                "default": "Alt+Up",
-                "mac": "Alt+Up"
+                "default": "Ctrl+Shift+Up",
+                "mac": "Command+Shift+Up"
             },
             "description": "Increase volume by 10%"
         },
         "volume-down": {
             "suggested_key": {
-                "default": "Alt+Down",
-                "mac": "Alt+Down"
+                "default": "Ctrl+Shift+Down",
+                "mac": "Command+Shift+Down"
             },
             "description": "Decrease volume by 10%"
         },
         "reset-flat": {
             "suggested_key": {
-                "default": "Alt+0",
-                "mac": "Alt+0"
+                "default": "Ctrl+Shift+0",
+                "mac": "Command+Shift+0"
             },
             "description": "Reset to flat EQ"
         }
