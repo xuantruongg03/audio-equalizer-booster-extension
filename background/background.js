@@ -417,47 +417,12 @@ chrome.commands.onCommand.addListener(async (command) => {
                 await stopCapture();
             }
             break;
-
-        case 'volume-up':
-            settings.volume = Math.min(800, settings.volume + 10);
-            if (isCapturing) {
-                chrome.runtime.sendMessage({
-                    type: 'UPDATE_AUDIO_SETTINGS',
-                    target: 'offscreen',
-                    settings: { volume: settings.volume, bands: settings.bands }
-                });
-            }
-            break;
-
-        case 'volume-down':
-            settings.volume = Math.max(0, settings.volume - 10);
-            if (isCapturing) {
-                chrome.runtime.sendMessage({
-                    type: 'UPDATE_AUDIO_SETTINGS',
-                    target: 'offscreen',
-                    settings: { volume: settings.volume, bands: settings.bands }
-                });
-            }
-            break;
-
-        case 'reset-flat':
-            settings.preset = 'flat';
-            settings.bands = { '32': 0, '64': 0, '125': 0, '250': 0, '500': 0, '1k': 0, '2k': 0, '4k': 0, '8k': 0, '16k': 0 };
-            if (isCapturing) {
-                chrome.runtime.sendMessage({
-                    type: 'UPDATE_AUDIO_SETTINGS',
-                    target: 'offscreen',
-                    settings: { volume: settings.volume, bands: settings.bands }
-                });
-            }
-            break;
     }
 
     await chrome.storage.local.set({ settings });
 
     // Show notification badge
-    const badgeText = command === 'toggle-power' ? (settings.enabled ? 'ON' : 'OFF') :
-        command === 'volume-up' || command === 'volume-down' ? `${settings.volume}%` : 'FLAT';
+    const badgeText = settings.enabled ? 'ON' : 'OFF';
     chrome.action.setBadgeText({ text: badgeText });
     chrome.action.setBadgeBackgroundColor({ color: settings.enabled ? '#22c55e' : '#6b7280' });
     setTimeout(() => chrome.action.setBadgeText({ text: '' }), 1500);

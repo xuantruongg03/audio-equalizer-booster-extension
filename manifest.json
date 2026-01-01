@@ -26,33 +26,19 @@
         "type": "module"
     },
     "commands": {
+        "_execute_action": {
+            "suggested_key": {
+                "default": "Alt+Q",
+                "mac": "Alt+Q"
+            },
+            "description": "Open Audio Equalizer popup"
+        },
         "toggle-power": {
             "suggested_key": {
-                "default": "Ctrl+Shift+E",
-                "mac": "Command+Shift+E"
+                "default": "Ctrl+Shift+Z",
+                "mac": "Ctrl+Shift+Z"
             },
             "description": "Toggle equalizer on/off"
-        },
-        "volume-up": {
-            "suggested_key": {
-                "default": "Ctrl+Shift+Up",
-                "mac": "Command+Shift+Up"
-            },
-            "description": "Increase volume by 10%"
-        },
-        "volume-down": {
-            "suggested_key": {
-                "default": "Ctrl+Shift+Down",
-                "mac": "Command+Shift+Down"
-            },
-            "description": "Decrease volume by 10%"
-        },
-        "reset-flat": {
-            "suggested_key": {
-                "default": "Ctrl+Shift+0",
-                "mac": "Command+Shift+0"
-            },
-            "description": "Reset to flat EQ"
         }
     },
     "minimum_chrome_version": "116"
