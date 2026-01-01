@@ -118,6 +118,7 @@ function generateEQKnobs() {
             max: 12,
             value: value,
             size: 34,
+            desc: `${band.label}Hz - ${band.desc}`,
             onChange: (val) => handleEQChange(band.key, val)
         });
         eqKnobs[band.key] = knob;

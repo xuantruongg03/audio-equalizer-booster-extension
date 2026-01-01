@@ -493,6 +493,8 @@ input:checked + .slider:before {
   align-items: center;
   gap: 3px;
   min-width: 34px;
+  position: relative;
+  cursor: help;
 }
 
 .knob-value {

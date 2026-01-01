@@ -56,16 +56,46 @@ async function closeOffscreenDocument() {
     isCapturing = false;
 }
 
+// Cleanup stale offscreen documents on service worker startup
+async function cleanupOnStartup() {
+    if (await hasOffscreenDocument()) {
+        console.log('Cleaning up stale offscreen document from previous session');
+        try {
+            await chrome.offscreen.closeDocument();
+        } catch (e) {
+            console.log('Cleanup error (safe to ignore):', e.message);
+        }
+    }
+    currentCaptureTabId = null;
+    isCapturing = false;
+}
+
+// Run cleanup on startup
+cleanupOnStartup();
+
 // ===================== TAB CAPTURE =====================
 
 async function stopExistingCapture() {
-    if (isCapturing && await hasOffscreenDocument()) {
+    // Always try to stop if offscreen document exists, regardless of isCapturing state
+    if (await hasOffscreenDocument()) {
         return new Promise((resolve) => {
             chrome.runtime.sendMessage({
                 type: 'STOP_AUDIO_PROCESSING',
                 target: 'offscreen'
             }, () => {
-                setTimeout(resolve, 100);
+                // Give time for cleanup
+                setTimeout(async () => {
+                    // Close the offscreen document to fully release the stream
+                    try {
+                        await chrome.offscreen.closeDocument();
+                        console.log('Offscreen document closed for cleanup');
+                    } catch (e) {
+                        // Ignore if already closed
+                    }
+                    isCapturing = false;
+                    currentCaptureTabId = null;
+                    resolve();
+                }, 150);
             });
         });
     }
@@ -358,10 +388,6 @@ chrome.runtime.onInstalled.addListener(() => {
                     autoPan: {
                         enabled: false,
                         speed: 'medium'
-                    },
-                    pitch: {
-                        enabled: false,
-                        semitones: 0
                     }
                 }
             };

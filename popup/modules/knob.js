@@ -21,7 +21,9 @@ export function createKnob(options = {}) {
 
     const container = document.createElement('div');
     container.className = 'knob-container';
-    container.setAttribute('data-tooltip', desc);
+    if (desc) {
+        container.setAttribute('title', desc);
+    }
     container.innerHTML = `
         <div class="knob-value" id="${id}-value">${formatValue(value)}</div>
         <div class="knob" id="${id}" data-value="${value}" data-min="${min}" data-max="${max}" style="--knob-size: ${size}px; --knob-color: ${color};">
