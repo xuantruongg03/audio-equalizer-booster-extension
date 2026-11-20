@@ -1,5 +1,5 @@
-// Offscreen Audio Processing Engine v2.2
-// EQ, Gain, Limiter, Spatial Audio, 7D Auto-Pan (Fixed)
+// Offscreen Audio Processing Engine v3.0 Pro
+// Professional 10-Band EQ, 800% Gain, Studio Reverb, Bass Enhancer, Limiter, Spatial Audio, 7D Auto-Pan, A/B Compare
 
 const EQ_FREQUENCIES = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 const EQ_BAND_KEYS = ['32', '64', '125', '250', '500', '1k', '2k', '4k', '8k', '16k'];
@@ -7,14 +7,17 @@ const EQ_BAND_KEYS = ['32', '64', '125', '250', '500', '1k', '2k', '4k', '8k', '
 // ===================== AUDIO STATE =====================
 let audioContext = null;
 let sourceNode = null;
+let preampGainNode = null;
 let gainNode = null;
 let eqFilters = [];
+let stereoPannerNode = null;
 let compressorNode = null;
 let limiterNode = null;
 let analyserNode = null;
 let mediaStream = null;
 let currentTabId = null;
 let isInitializing = false;
+let abCompareActive = false;
 
 // Spatial audio nodes
 let spatialEnabled = false;
@@ -36,11 +39,33 @@ let autoPanLFO = null;
 let autoPanLFOGain = null;
 let autoPanSpeed = 'medium';
 
+// Reverb (Convolution) nodes
+let reverbEnabled = false;
+let reverbType = 'hall';
+let reverbMix = 25; // 0-100%
+let convolverNode = null;
+let reverbDryGain = null;
+let reverbWetGain = null;
+let reverbInputSplit = null;
+let reverbOutputMerge = null;
+
+// Bass Enhancer nodes
+let bassEnhancerEnabled = false;
+let bassEnhancerAmount = 40; // 0-100%
+let bassEnhancerFreq = 90; // Hz
+let bassFilterNode = null;
+let bassShaperNode = null;
+let bassGainNode = null;
+let bassInputSplit = null;
+let bassOutputMerge = null;
+
 // Current effects cache
 let currentEffects = {
     limiter: { enabled: true, threshold: -6, knee: 20, ratio: 12, attack: 0.003, release: 0.25 },
     spatial: { enabled: false, mode: 'wide', width: 50 },
-    autoPan: { enabled: false, speed: 'medium' }
+    autoPan: { enabled: false, speed: 'medium' },
+    reverb: { enabled: false, type: 'hall', mix: 25 },
+    bassEnhancer: { enabled: false, amount: 40, freq: 90 }
 };
 
 // ===================== INITIALIZATION =====================
@@ -61,6 +86,14 @@ async function initAudioContext(streamId, tabId) {
             video: false
         });
 
+        // Listen for track termination (triggered when tab is reloaded or navigated by browser)
+        mediaStream.getAudioTracks().forEach(track => {
+            track.onended = () => {
+                console.log('[Audio EQ Pro v3.0] Tab audio stream ended by browser');
+                stopAudioProcessing(true);
+            };
+        });
+
         currentTabId = tabId;
 
         audioContext = new AudioContext({
@@ -71,21 +104,29 @@ async function initAudioContext(streamId, tabId) {
         // Source
         sourceNode = audioContext.createMediaStreamSource(mediaStream);
 
-        // Gain (0-800%)
+        // Preamp Headroom Gain (-12dB to +12dB)
+        preampGainNode = audioContext.createGain();
+        preampGainNode.gain.value = 1.0;
+
+        // Master Gain (0-800%)
         gainNode = audioContext.createGain();
         gainNode.gain.value = 1.0;
 
         // 10-band EQ
-        eqFilters = EQ_FREQUENCIES.map((freq) => {
+        eqFilters = EQ_FREQUENCIES.map((freq, index) => {
             const filter = audioContext.createBiquadFilter();
-            filter.type = 'peaking';
+            filter.type = index === 0 ? 'lowshelf' : index === 9 ? 'highshelf' : 'peaking';
             filter.frequency.value = freq;
             filter.Q.value = 1.2;
             filter.gain.value = 0;
             return filter;
         });
 
-        // Compressor (limiter)
+        // Master Stereo Balance (Pan)
+        stereoPannerNode = audioContext.createStereoPanner();
+        stereoPannerNode.pan.value = 0;
+
+        // Dynamics Compressor
         compressorNode = audioContext.createDynamicsCompressor();
         compressorNode.threshold.value = -6;
         compressorNode.knee.value = 20;
@@ -93,7 +134,7 @@ async function initAudioContext(streamId, tabId) {
         compressorNode.attack.value = 0.003;
         compressorNode.release.value = 0.25;
 
-        // Brick wall limiter
+        // Brick wall limiter (protection)
         limiterNode = audioContext.createDynamicsCompressor();
         limiterNode.threshold.value = -1;
         limiterNode.knee.value = 0;
@@ -101,28 +142,161 @@ async function initAudioContext(streamId, tabId) {
         limiterNode.attack.value = 0.001;
         limiterNode.release.value = 0.1;
 
-        // Analyser for visualizer
+        // Analyser for visualizer (FFT size 256 for responsive feedback)
         analyserNode = audioContext.createAnalyser();
         analyserNode.fftSize = 256;
         analyserNode.smoothingTimeConstant = 0.8;
 
-        // Create effect nodes
+        // Create Effect modules
         createSpatialNodes();
         createAutoPanNodes();
+        createReverbNodes();
+        createBassEnhancerNodes();
 
-        // Build audio chain
+        // Build main processing graph
         buildAudioChain();
 
-        console.log('Audio context initialized successfully');
+        console.log('[Audio EQ Pro v3.0] Audio engine initialized');
         chrome.runtime.sendMessage({ type: 'AUDIO_STARTED', tabId: tabId });
 
         isInitializing = false;
 
     } catch (error) {
         isInitializing = false;
-        console.error('Failed to init audio:', error);
+        console.error('[Audio EQ Pro v3.0] Failed to init audio:', error);
         chrome.runtime.sendMessage({ type: 'AUDIO_ERROR', error: error.message });
         throw error;
+    }
+}
+
+// ===================== REVERB SYNTHESIS =====================
+function generateImpulseResponse(type) {
+    if (!audioContext) return null;
+    const sampleRate = audioContext.sampleRate;
+    const durations = {
+        'room': 1.0,
+        'hall': 2.6,
+        'plate': 1.8,
+        'cathedral': 4.5
+    };
+    const decays = {
+        'room': 1.2,
+        'hall': 2.4,
+        'plate': 1.6,
+        'cathedral': 3.8
+    };
+
+    const duration = durations[type] || 2.5;
+    const decay = decays[type] || 2.0;
+    const length = Math.floor(sampleRate * duration);
+    const impulse = audioContext.createBuffer(2, length, sampleRate);
+
+    for (let channel = 0; channel < 2; channel++) {
+        const channelData = impulse.getChannelData(channel);
+        for (let i = 0; i < length; i++) {
+            // Exponentially decaying white noise with early reflections
+            const noise = (Math.random() * 2 - 1);
+            const env = Math.exp(-i / (sampleRate * decay * 0.3));
+            channelData[i] = noise * env;
+        }
+    }
+    return impulse;
+}
+
+function createReverbNodes() {
+    if (!audioContext) return;
+    reverbInputSplit = audioContext.createGain();
+    reverbOutputMerge = audioContext.createGain();
+    reverbDryGain = audioContext.createGain();
+    reverbWetGain = audioContext.createGain();
+
+    convolverNode = audioContext.createConvolver();
+    convolverNode.buffer = generateImpulseResponse(reverbType);
+
+    updateReverbMix(reverbMix);
+
+    // Dry path
+    reverbInputSplit.connect(reverbDryGain);
+    reverbDryGain.connect(reverbOutputMerge);
+
+    // Wet path
+    reverbInputSplit.connect(convolverNode);
+    convolverNode.connect(reverbWetGain);
+    reverbWetGain.connect(reverbOutputMerge);
+}
+
+function updateReverbType(type) {
+    reverbType = type;
+    if (convolverNode && audioContext) {
+        convolverNode.buffer = generateImpulseResponse(type);
+    }
+}
+
+function updateReverbMix(mix) {
+    reverbMix = Math.max(0, Math.min(100, mix));
+    if (!audioContext || !reverbDryGain || !reverbWetGain) return;
+    const wet = (reverbMix / 100);
+    const dry = 1 - (wet * 0.5); // Keep dry signal punchy
+    const ct = audioContext.currentTime;
+    reverbDryGain.gain.setValueAtTime(dry, ct);
+    reverbWetGain.gain.setValueAtTime(wet, ct);
+}
+
+// ===================== BASS ENHANCER =====================
+function makeBassEnhancerCurve(amount) {
+    const n = 256;
+    const curve = new Float32Array(n);
+    const k = (amount / 100) * 8 + 1;
+    for (let i = 0; i < n; i++) {
+        const x = (i * 2) / n - 1;
+        // Soft clipping wave shaper for warm sub-harmonics
+        curve[i] = ((1 + k) * x) / (1 + k * Math.abs(x));
+    }
+    return curve;
+}
+
+function createBassEnhancerNodes() {
+    if (!audioContext) return;
+    bassInputSplit = audioContext.createGain();
+    bassOutputMerge = audioContext.createGain();
+
+    bassFilterNode = audioContext.createBiquadFilter();
+    bassFilterNode.type = 'lowpass';
+    bassFilterNode.frequency.value = bassEnhancerFreq;
+    bassFilterNode.Q.value = 1.0;
+
+    bassShaperNode = audioContext.createWaveShaper();
+    bassShaperNode.curve = makeBassEnhancerCurve(bassEnhancerAmount);
+    bassShaperNode.oversample = '2x';
+
+    bassGainNode = audioContext.createGain();
+    bassGainNode.gain.value = (bassEnhancerAmount / 100) * 0.7;
+
+    // Passthrough direct audio
+    bassInputSplit.connect(bassOutputMerge);
+
+    // Bass enhancement harmonic branch
+    bassInputSplit.connect(bassFilterNode);
+    bassFilterNode.connect(bassShaperNode);
+    bassShaperNode.connect(bassGainNode);
+    bassGainNode.connect(bassOutputMerge);
+}
+
+function updateBassEnhancer(amount, freq) {
+    if (amount !== undefined) {
+        bassEnhancerAmount = amount;
+        if (bassShaperNode) {
+            bassShaperNode.curve = makeBassEnhancerCurve(amount);
+        }
+        if (bassGainNode && audioContext) {
+            bassGainNode.gain.setValueAtTime((amount / 100) * 0.75, audioContext.currentTime);
+        }
+    }
+    if (freq !== undefined) {
+        bassEnhancerFreq = freq;
+        if (bassFilterNode && audioContext) {
+            bassFilterNode.frequency.setValueAtTime(freq, audioContext.currentTime);
+        }
     }
 }
 
@@ -130,60 +304,44 @@ async function initAudioContext(streamId, tabId) {
 function createSpatialNodes() {
     if (!audioContext) return;
 
-    // Channel splitter/merger for stereo processing
     splitterNode = audioContext.createChannelSplitter(2);
     mergerNode = audioContext.createChannelMerger(2);
 
-    // Delay nodes for stereo widening
     leftDelayNode = audioContext.createDelay(0.05);
     rightDelayNode = audioContext.createDelay(0.05);
     leftDelayNode.delayTime.value = 0;
     rightDelayNode.delayTime.value = 0;
 
-    // Gain nodes for channel balance
     leftGainNode = audioContext.createGain();
     rightGainNode = audioContext.createGain();
     leftGainNode.gain.value = 1;
     rightGainNode.gain.value = 1;
 
-    // Cross-feed for immersive effect
     crossFeedL = audioContext.createGain();
     crossFeedR = audioContext.createGain();
     crossFeedL.gain.value = 0;
     crossFeedR.gain.value = 0;
-
-    console.log('Spatial nodes created');
 }
 
-// Connect internal spatial nodes (called when spatial is enabled)
 function connectSpatialInternal() {
     if (!splitterNode || !mergerNode) return;
 
-    // Connect: Splitter -> Delays -> Gains -> Merger
-    // Left channel
     splitterNode.connect(leftDelayNode, 0);
     leftDelayNode.connect(leftGainNode);
     leftGainNode.connect(mergerNode, 0, 0);
 
-    // Right channel  
     splitterNode.connect(rightDelayNode, 1);
     rightDelayNode.connect(rightGainNode);
     rightGainNode.connect(mergerNode, 0, 1);
 
-    // Cross-feed (left to right, right to left)
     splitterNode.connect(crossFeedL, 0);
     crossFeedL.connect(mergerNode, 0, 1);
     splitterNode.connect(crossFeedR, 1);
     crossFeedR.connect(mergerNode, 0, 0);
-
-    console.log('Spatial internal connections established');
 }
 
 function updateSpatialEffect(mode, width) {
-    if (!audioContext || !leftDelayNode || !rightDelayNode) {
-        console.log('Cannot update spatial: nodes not ready');
-        return;
-    }
+    if (!audioContext || !leftDelayNode || !rightDelayNode) return;
 
     const w = width / 100;
     const ct = audioContext.currentTime;
@@ -191,51 +349,44 @@ function updateSpatialEffect(mode, width) {
     spatialMode = mode;
     spatialWidth = width;
 
-    console.log('Updating spatial effect:', mode, width);
-
     switch (mode) {
         case 'wide':
-            // Simple stereo widening
             leftDelayNode.delayTime.setValueAtTime(0, ct);
-            rightDelayNode.delayTime.setValueAtTime(w * 0.0005, ct);
+            rightDelayNode.delayTime.setValueAtTime(w * 0.0006, ct);
             leftGainNode.gain.setValueAtTime(1, ct);
             rightGainNode.gain.setValueAtTime(1, ct);
-            crossFeedL.gain.setValueAtTime(-w * 0.1, ct);
-            crossFeedR.gain.setValueAtTime(-w * 0.1, ct);
+            crossFeedL.gain.setValueAtTime(-w * 0.12, ct);
+            crossFeedR.gain.setValueAtTime(-w * 0.12, ct);
             break;
 
         case 'surround':
-            // Virtual surround with more delay
-            leftDelayNode.delayTime.setValueAtTime(w * 0.0002, ct);
-            rightDelayNode.delayTime.setValueAtTime(w * 0.0007, ct);
+            leftDelayNode.delayTime.setValueAtTime(w * 0.0003, ct);
+            rightDelayNode.delayTime.setValueAtTime(w * 0.0008, ct);
             leftGainNode.gain.setValueAtTime(1.1, ct);
             rightGainNode.gain.setValueAtTime(1.1, ct);
-            crossFeedL.gain.setValueAtTime(w * 0.15, ct);
-            crossFeedR.gain.setValueAtTime(w * 0.15, ct);
+            crossFeedL.gain.setValueAtTime(w * 0.18, ct);
+            crossFeedR.gain.setValueAtTime(w * 0.18, ct);
             break;
 
         case '3d':
-            // 3D effect with phase differences
-            leftDelayNode.delayTime.setValueAtTime(w * 0.0003, ct);
-            rightDelayNode.delayTime.setValueAtTime(w * 0.0008, ct);
+            leftDelayNode.delayTime.setValueAtTime(w * 0.0004, ct);
+            rightDelayNode.delayTime.setValueAtTime(w * 0.001, ct);
             leftGainNode.gain.setValueAtTime(1.15, ct);
             rightGainNode.gain.setValueAtTime(0.95, ct);
-            crossFeedL.gain.setValueAtTime(w * 0.2, ct);
-            crossFeedR.gain.setValueAtTime(w * 0.12, ct);
+            crossFeedL.gain.setValueAtTime(w * 0.22, ct);
+            crossFeedR.gain.setValueAtTime(w * 0.14, ct);
             break;
 
         case '7d':
-            // Maximum immersion
-            leftDelayNode.delayTime.setValueAtTime(w * 0.0004, ct);
-            rightDelayNode.delayTime.setValueAtTime(w * 0.001, ct);
+            leftDelayNode.delayTime.setValueAtTime(w * 0.0005, ct);
+            rightDelayNode.delayTime.setValueAtTime(w * 0.0012, ct);
             leftGainNode.gain.setValueAtTime(1.2, ct);
             rightGainNode.gain.setValueAtTime(1.2, ct);
-            crossFeedL.gain.setValueAtTime(w * 0.25, ct);
-            crossFeedR.gain.setValueAtTime(w * 0.25, ct);
+            crossFeedL.gain.setValueAtTime(w * 0.28, ct);
+            crossFeedR.gain.setValueAtTime(w * 0.28, ct);
             break;
 
         default:
-            // Off - reset to neutral
             leftDelayNode.delayTime.setValueAtTime(0, ct);
             rightDelayNode.delayTime.setValueAtTime(0, ct);
             leftGainNode.gain.setValueAtTime(1, ct);
@@ -249,61 +400,45 @@ function updateSpatialEffect(mode, width) {
 function createAutoPanNodes() {
     if (!audioContext) return;
 
-    // StereoPanner for left-right panning
     autoPanNode = audioContext.createStereoPanner();
     autoPanNode.pan.value = 0;
 
-    // LFO oscillator for automatic panning
     autoPanLFO = audioContext.createOscillator();
     autoPanLFO.type = 'sine';
-    autoPanLFO.frequency.value = 0.5; // 2 second cycle
+    autoPanLFO.frequency.value = 0.5;
 
-    // Gain to control pan depth
     autoPanLFOGain = audioContext.createGain();
-    autoPanLFOGain.gain.value = 0.9; // Pan range -0.9 to +0.9
+    autoPanLFOGain.gain.value = 0.9;
 
-    // Connect LFO -> Gain -> Pan parameter
     autoPanLFO.connect(autoPanLFOGain);
     autoPanLFOGain.connect(autoPanNode.pan);
-
-    // Start LFO
     autoPanLFO.start();
-
-    console.log('Auto-pan nodes created and LFO started');
 }
 
 function updateAutoPanSpeed(speed) {
-    if (!autoPanLFO || !audioContext) {
-        console.log('Cannot update auto-pan speed: LFO not ready');
-        return;
-    }
+    if (!autoPanLFO || !audioContext) return;
 
     const frequencies = {
-        'slow': 0.25,    // 4 second cycle
-        'medium': 0.5,   // 2 second cycle
-        'fast': 1.0      // 1 second cycle
+        'slow': 0.25,
+        'medium': 0.5,
+        'fast': 1.0
     };
 
     const freq = frequencies[speed] || 0.5;
     autoPanLFO.frequency.setValueAtTime(freq, audioContext.currentTime);
     autoPanSpeed = speed;
-
-    console.log('Auto-pan speed updated:', speed, freq, 'Hz');
 }
 
 // ===================== AUDIO CHAIN =====================
 function buildAudioChain() {
-    if (!audioContext || !sourceNode) {
-        console.log('Cannot build chain: context or source not ready');
-        return;
-    }
+    if (!audioContext || !sourceNode) return;
 
-    // Disconnect all main chain nodes
+    // Disconnect all
     try { sourceNode.disconnect(); } catch (e) { }
+    try { preampGainNode?.disconnect(); } catch (e) { }
     try { gainNode.disconnect(); } catch (e) { }
     eqFilters.forEach(f => { try { f.disconnect(); } catch (e) { } });
     try { autoPanNode?.disconnect(); } catch (e) { }
-    // Disconnect spatial nodes completely (will reconnect internal if needed)
     try { splitterNode?.disconnect(); } catch (e) { }
     try { leftDelayNode?.disconnect(); } catch (e) { }
     try { rightDelayNode?.disconnect(); } catch (e) { }
@@ -312,77 +447,106 @@ function buildAudioChain() {
     try { crossFeedL?.disconnect(); } catch (e) { }
     try { crossFeedR?.disconnect(); } catch (e) { }
     try { mergerNode?.disconnect(); } catch (e) { }
+    try { reverbOutputMerge?.disconnect(); } catch (e) { }
+    try { bassOutputMerge?.disconnect(); } catch (e) { }
+    try { stereoPannerNode?.disconnect(); } catch (e) { }
     try { compressorNode?.disconnect(); } catch (e) { }
     try { limiterNode?.disconnect(); } catch (e) { }
     try { analyserNode?.disconnect(); } catch (e) { }
 
-    // Build chain: Source -> Gain -> EQ -> [AutoPan] -> [Spatial] -> Compressor -> Limiter -> Destination
+    if (abCompareActive) {
+        // Direct Bypass Mode for A/B comparison
+        sourceNode.connect(limiterNode);
+        limiterNode.connect(analyserNode);
+        limiterNode.connect(audioContext.destination);
+        console.log('[Audio EQ Pro v3.0] A/B Compare BYPASS active');
+        return;
+    }
+
+    // Normal Chain:
+    // Source -> Preamp -> Gain -> EQ -> [BassEnhancer] -> [AutoPan] -> [Spatial] -> [Reverb] -> [Panner] -> [Compressor] -> Limiter -> Analyser + Output
     let currentNode = sourceNode;
 
-    // Gain
+    // 1. Preamp Headroom Gain
+    if (preampGainNode) {
+        currentNode.connect(preampGainNode);
+        currentNode = preampGainNode;
+    }
+
+    // 2. Master Gain
     currentNode.connect(gainNode);
     currentNode = gainNode;
 
-    // EQ filters
+    // 3. 10-Band Graphic & Parametric EQ
     for (const filter of eqFilters) {
         currentNode.connect(filter);
         currentNode = filter;
     }
 
-    // Auto-Pan (7D) - if enabled
+    // 4. Bass Enhancer
+    if (bassEnhancerEnabled && bassInputSplit && bassOutputMerge) {
+        currentNode.connect(bassInputSplit);
+        currentNode = bassOutputMerge;
+    }
+
+    // 5. Auto-Pan (7D)
     if (autoPanEnabled && autoPanNode) {
         currentNode.connect(autoPanNode);
         currentNode = autoPanNode;
-        console.log('Auto-pan inserted into chain');
     }
 
-    // Spatial Audio - if enabled
+    // 6. Spatial Audio
     if (spatialEnabled && splitterNode && mergerNode) {
-        connectSpatialInternal(); // Re-establish internal connections
+        connectSpatialInternal();
         currentNode.connect(splitterNode);
         currentNode = mergerNode;
-        // Apply current spatial settings
         updateSpatialEffect(spatialMode, spatialWidth);
-        console.log('Spatial audio inserted into chain');
     }
 
-    // Compressor (if limiter enabled)
+    // 7. Studio Reverb
+    if (reverbEnabled && reverbInputSplit && reverbOutputMerge) {
+        currentNode.connect(reverbInputSplit);
+        currentNode = reverbOutputMerge;
+    }
+
+    // 8. Master Stereo Panner
+    if (stereoPannerNode) {
+        currentNode.connect(stereoPannerNode);
+        currentNode = stereoPannerNode;
+    }
+
+    // 9. Compressor (if limiter enabled)
     if (currentEffects.limiter.enabled && compressorNode) {
         currentNode.connect(compressorNode);
         currentNode = compressorNode;
     }
 
-    // Brick wall limiter (always on)
+    // 10. Brick wall safety limiter
     currentNode.connect(limiterNode);
     currentNode = limiterNode;
 
-    // Analyser (parallel connection for visualization)
+    // 11. Analyser & Output
     limiterNode.connect(analyserNode);
-
-    // Final output
     currentNode.connect(audioContext.destination);
 
-    console.log('Audio chain built:', {
-        autoPan: autoPanEnabled,
-        spatial: spatialEnabled,
-        limiter: currentEffects.limiter.enabled
-    });
+    console.log('[Audio EQ Pro v3.0] Audio graph constructed');
 }
 
 // ===================== STOP PROCESSING =====================
 async function stopAudioProcessing(sendMessage = true) {
     try {
-        // Stop LFO
         if (autoPanLFO) {
             try { autoPanLFO.stop(); } catch (e) { }
         }
 
-        // Disconnect all nodes
         const allNodes = [
-            sourceNode, gainNode, compressorNode, limiterNode, analyserNode,
+            sourceNode, preampGainNode, gainNode, compressorNode, limiterNode, analyserNode,
             splitterNode, mergerNode, leftDelayNode, rightDelayNode,
             leftGainNode, rightGainNode, crossFeedL, crossFeedR,
-            autoPanNode, autoPanLFO, autoPanLFOGain
+            autoPanNode, autoPanLFO, autoPanLFOGain,
+            convolverNode, reverbDryGain, reverbWetGain, reverbInputSplit, reverbOutputMerge,
+            bassFilterNode, bassShaperNode, bassGainNode, bassInputSplit, bassOutputMerge,
+            stereoPannerNode
         ];
 
         allNodes.forEach(node => {
@@ -391,20 +555,13 @@ async function stopAudioProcessing(sendMessage = true) {
 
         eqFilters.forEach(f => { try { f.disconnect(); } catch (e) { } });
         eqFilters = [];
+        preampGainNode = stereoPannerNode = null;
 
-        // Reset references
-        sourceNode = gainNode = compressorNode = limiterNode = analyserNode = null;
-        splitterNode = mergerNode = leftDelayNode = rightDelayNode = null;
-        leftGainNode = rightGainNode = crossFeedL = crossFeedR = null;
-        autoPanNode = autoPanLFO = autoPanLFOGain = null;
-
-        // Stop media stream
         if (mediaStream) {
             mediaStream.getTracks().forEach(track => track.stop());
             mediaStream = null;
         }
 
-        // Close audio context
         if (audioContext && audioContext.state !== 'closed') {
             await audioContext.close();
             audioContext = null;
@@ -413,14 +570,12 @@ async function stopAudioProcessing(sendMessage = true) {
         const tabId = currentTabId;
         currentTabId = null;
 
-        console.log('Audio processing stopped');
-
         if (sendMessage) {
             chrome.runtime.sendMessage({ type: 'AUDIO_STOPPED', tabId: tabId });
         }
 
     } catch (error) {
-        console.error('Error stopping audio:', error);
+        console.error('[Audio EQ Pro v3.0] Error stopping audio:', error);
     }
 }
 
@@ -429,7 +584,22 @@ function applySettings(settings) {
     if (!audioContext || audioContext.state === 'closed') return;
 
     const ct = audioContext.currentTime;
-    const ramp = 0.05;
+    const ramp = 0.04;
+
+    // Preamp Headroom Gain (-12dB to +12dB)
+    if (preampGainNode && settings.preamp !== undefined) {
+        const linearPreamp = Math.pow(10, settings.preamp / 20);
+        preampGainNode.gain.cancelScheduledValues(ct);
+        preampGainNode.gain.setValueAtTime(preampGainNode.gain.value, ct);
+        preampGainNode.gain.linearRampToValueAtTime(linearPreamp, ct + ramp);
+    }
+
+    // Master Stereo Balance (Pan: -1.0 to +1.0)
+    if (stereoPannerNode && settings.pan !== undefined) {
+        stereoPannerNode.pan.cancelScheduledValues(ct);
+        stereoPannerNode.pan.setValueAtTime(stereoPannerNode.pan.value, ct);
+        stereoPannerNode.pan.linearRampToValueAtTime(settings.pan, ct + ramp);
+    }
 
     // Volume (0-800%)
     if (gainNode && settings.volume !== undefined) {
@@ -439,14 +609,43 @@ function applySettings(settings) {
         gainNode.gain.linearRampToValueAtTime(gainValue, ct + ramp);
     }
 
-    // EQ bands
+    // Master Mono Summing (true mono downmix via Web Audio standard channelCountMode)
+    if (gainNode && settings.mono !== undefined) {
+        try {
+            gainNode.channelCount = settings.mono ? 1 : 2;
+            gainNode.channelCountMode = 'explicit';
+        } catch (e) {
+            console.warn('[Audio EQ Pro v3.0] Error toggling mono mode:', e);
+        }
+    }
+
+    // 10 EQ bands with parametric params (Q, filter type, bypass)
     if (settings.bands) {
         EQ_BAND_KEYS.forEach((key, index) => {
-            if (eqFilters[index] && settings.bands[key] !== undefined) {
+            if (eqFilters[index]) {
                 const filter = eqFilters[index];
+                const params = settings.bandParams?.[key] || {};
+
+                // Custom Q / Bandwidth
+                if (params.Q !== undefined) {
+                    filter.Q.setValueAtTime(params.Q, ct);
+                }
+
+                // Custom filter type
+                if (params.type && filter.type !== params.type) {
+                    try { filter.type = params.type; } catch (e) { }
+                }
+
+                // Custom freq if fine-tuned
+                if (params.freq !== undefined) {
+                    filter.frequency.setValueAtTime(params.freq, ct);
+                }
+
+                // Target gain (0 if bypassed)
+                const targetGain = params.bypass ? 0 : (settings.bands[key] ?? 0);
                 filter.gain.cancelScheduledValues(ct);
                 filter.gain.setValueAtTime(filter.gain.value, ct);
-                filter.gain.linearRampToValueAtTime(settings.bands[key], ct + ramp);
+                filter.gain.linearRampToValueAtTime(targetGain, ct + ramp);
             }
         });
     }
@@ -455,8 +654,6 @@ function applySettings(settings) {
     if (settings.effects) {
         applyEffects(settings.effects);
     }
-
-    console.log('Settings applied');
 }
 
 function applyEffects(effects) {
@@ -496,7 +693,6 @@ function applyEffects(effects) {
             spatialEnabled = effects.spatial.enabled;
         }
 
-        // Update spatial parameters
         if (effects.spatial.mode !== undefined || effects.spatial.width !== undefined) {
             updateSpatialEffect(
                 effects.spatial.mode ?? spatialMode,
@@ -506,11 +702,10 @@ function applyEffects(effects) {
 
         if (spatialEnabled !== wasEnabled) {
             needsRebuild = true;
-            console.log('Spatial enabled changed:', spatialEnabled);
         }
     }
 
-    // Auto-Pan (7D)
+    // Auto-Pan
     if (effects.autoPan) {
         const wasEnabled = autoPanEnabled;
 
@@ -524,23 +719,58 @@ function applyEffects(effects) {
 
         if (autoPanEnabled !== wasEnabled) {
             needsRebuild = true;
-            console.log('AutoPan enabled changed:', autoPanEnabled);
         }
     }
 
-    // Update cache
+    // Studio Reverb
+    if (effects.reverb) {
+        const wasEnabled = reverbEnabled;
+
+        if (effects.reverb.enabled !== undefined) {
+            reverbEnabled = effects.reverb.enabled;
+        }
+
+        if (effects.reverb.type && effects.reverb.type !== reverbType) {
+            updateReverbType(effects.reverb.type);
+        }
+
+        if (effects.reverb.mix !== undefined) {
+            updateReverbMix(effects.reverb.mix);
+        }
+
+        if (reverbEnabled !== wasEnabled) {
+            needsRebuild = true;
+        }
+    }
+
+    // Bass Enhancer
+    if (effects.bassEnhancer) {
+        const wasEnabled = bassEnhancerEnabled;
+
+        if (effects.bassEnhancer.enabled !== undefined) {
+            bassEnhancerEnabled = effects.bassEnhancer.enabled;
+        }
+
+        updateBassEnhancer(effects.bassEnhancer.amount, effects.bassEnhancer.freq);
+
+        if (bassEnhancerEnabled !== wasEnabled) {
+            needsRebuild = true;
+        }
+    }
+
+    // Cache
     currentEffects = {
         ...currentEffects,
         ...effects,
         spatial: { ...currentEffects.spatial, ...effects.spatial },
-        autoPan: { ...currentEffects.autoPan, ...effects.autoPan }
+        autoPan: { ...currentEffects.autoPan, ...effects.autoPan },
+        reverb: { ...currentEffects.reverb, ...effects.reverb },
+        bassEnhancer: { ...currentEffects.bassEnhancer, ...effects.bassEnhancer }
     };
 
     if (needsRebuild) {
         buildAudioChain();
     }
-
-    console.log('Effects applied:', effects);
 }
 
 // ===================== MESSAGE HANDLING =====================
@@ -570,6 +800,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({ success: true });
             break;
 
+        case 'TOGGLE_AB_COMPARE':
+            abCompareActive = !abCompareActive;
+            buildAudioChain();
+            sendResponse({ success: true, abActive: abCompareActive });
+            break;
+
         case 'GET_ANALYSER_DATA':
             if (analyserNode && audioContext && audioContext.state === 'running') {
                 const dataArray = new Uint8Array(analyserNode.frequencyBinCount);
@@ -591,4 +827,4 @@ window.addEventListener('beforeunload', () => {
     stopAudioProcessing();
 });
 
-console.log('Offscreen audio processor v2.2 loaded');
+console.log('Offscreen audio processor v3.0 loaded');

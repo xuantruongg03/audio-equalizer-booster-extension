@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Audio Equalizer & Booster Pro</title>
+  <title>Zyno Audio Equalizer & Booster Pro v3.0</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,21 +11,45 @@
     <!-- Header -->
     <header class="header">
       <div class="logo">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <path d="M12 3V21M6 7V17M18 7V17M3 10V14M21 10V14M9 5V19M15 5V19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <span>Audio EQ Pro</span>
-        <span class="version">v2.1</span>
+        <img class="logo-img" src="../icons/icon32.png" alt="Zyno Logo" width="22" height="22">
+        <span class="logo-text">Zyno Audio Pro</span>
+        <span class="version-badge">v3.0</span>
       </div>
+
       <div class="header-controls">
-        <button class="btn-icon-small" id="settingsBtn" title="Cài đặt">
+        <!-- Undo / Redo -->
+        <div class="undo-redo-group">
+          <button class="btn-icon-small" id="undoBtn" title="Hoàn tác (Ctrl+Z)" disabled>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 7v6h6"/>
+              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+            </svg>
+          </button>
+          <button class="btn-icon-small" id="redoBtn" title="Làm lại (Ctrl+Y)" disabled>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 7v6h-6"/>
+              <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- A/B Compare Button -->
+        <button class="ab-compare-btn" id="abCompareBtn" title="So sánh âm thanh gốc vs hiệu ứng (Phím A)">
+          <span class="ab-badge">A/B</span>
+          <span class="ab-text">Normal</span>
+        </button>
+
+        <!-- Settings Button -->
+        <button class="btn-icon-small" id="settingsBtn" title="Cài đặt & Phím tắt">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"/>
             <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
           </svg>
         </button>
+
+        <!-- Master Power -->
         <div class="power-toggle">
-          <label class="switch">
+          <label class="switch" title="Bật/Tắt Audio (Space)">
             <input type="checkbox" id="powerToggle">
             <span class="slider"></span>
           </label>
@@ -42,117 +66,155 @@
       <div class="site-badge" id="siteBadge">
         <img class="site-favicon" id="siteFavicon" src="" style="display: none;" />
         <span class="site-domain" id="siteDomain">-</span>
-        <button class="btn-site-save" id="saveSiteBtn" title="Lưu cho site này">💾</button>
+        <button class="btn-site-save" id="saveSiteBtn" title="Lưu profile cho trang này">💾</button>
       </div>
     </div>
 
-    <!-- Tabs -->
+    <!-- Tabs Nav -->
     <div class="tabs-nav">
       <button class="tab-btn active" data-tab="eq">🎛️ Equalizer</button>
-      <button class="tab-btn" data-tab="effects">✨ Effects</button>
+      <button class="tab-btn" data-tab="effects">✨ Studio Effects</button>
       <button class="tab-btn" data-tab="presets">📁 Presets</button>
     </div>
 
-    <!-- Tab: Equalizer -->
+    <!-- Tab 1: Equalizer -->
     <div class="tab-content active" id="tab-eq">
-      <!-- Volume Section (Slider Style) -->
+      <!-- Volume Section -->
       <div class="volume-section">
         <div class="volume-header">
-          <span class="volume-title">🔊 Volume</span>
+          <div class="volume-title" id="muteToggleBtn" title="Click để Mute / Bật tiếng (M)">
+            <span class="vol-icon" id="volumeIcon">🔊</span>
+            <span>Master Volume</span>
+          </div>
           <span class="volume-value-display" id="volumeDisplay">100%</span>
         </div>
         <div class="volume-slider-container">
-          <input type="range" class="volume-slider" id="volumeSlider" min="0" max="800" value="100">
+          <input type="range" class="volume-slider" id="volumeSlider" min="0" max="800" value="100" style="--volume-percent: 12.5%;">
         </div>
         <div class="volume-marks">
-          <span class="volume-mark" data-value="0">0</span>
-          <span class="volume-mark active" data-value="100">100</span>
-          <span class="volume-mark" data-value="200">200</span>
-          <span class="volume-mark" data-value="400">400</span>
-          <span class="volume-mark" data-value="600">600</span>
+          <span class="volume-mark" data-value="0">0%</span>
+          <span class="volume-mark active" data-value="100">100%</span>
+          <span class="volume-mark" data-value="200">200%</span>
+          <span class="volume-mark" data-value="400">400%</span>
+          <span class="volume-mark" data-value="600">600%</span>
           <span class="volume-mark" data-value="800">800%</span>
         </div>
       </div>
 
-      <!-- Preset Select (No Icons) -->
+      <!-- Preset Quick Dropdown -->
       <div class="preset-section">
         <div class="preset-select-wrapper">
           <select class="preset-select" id="presetSelect">
-            <optgroup label="Cơ bản">
-              <option value="flat">Flat</option>
-              <option value="bass-boost">Bass Boost</option>
-              <option value="bass-boost-extreme">Bass Extreme</option>
-              <option value="vocal-booster">Vocal Booster</option>
-              <option value="treble-booster">Treble Boost</option>
-              <option value="loudness">Loudness</option>
+            <optgroup label="⚡ Zyno Signature">
+              <option value="zyno-signature">⚡ Zyno Studio Signature</option>
+              <option value="zyno-sub-bass">🎧 Zyno Sub-Bass Club</option>
             </optgroup>
-            <optgroup label="Thể loại nhạc">
+            <optgroup label="Cơ bản Studio">
+              <option value="flat">Flat Studio (Cân bằng)</option>
+              <option value="bass-boost">Bass Boost (Trầm mạnh)</option>
+              <option value="bass-boost-extreme">Bass Extreme (Rung chấn)</option>
+              <option value="deep-bass-pro">Deep Sub-Bass Pro</option>
+              <option value="vocal-booster">Vocal Booster (Nổi bật ca sĩ)</option>
+              <option value="treble-booster">Treble Boost (Sáng rõ)</option>
+              <option value="loudness">Loudness Contour</option>
+              <option value="crystal-clarity">Crystal Clarity (Chi tiết)</option>
+            </optgroup>
+            <optgroup label="Thể loại Âm nhạc">
               <option value="pop">Pop</option>
               <option value="rock">Rock</option>
-              <option value="hip-hop">Hip-Hop</option>
-              <option value="edm">EDM</option>
+              <option value="hip-hop">Hip-Hop / Rap</option>
+              <option value="edm">EDM / Dance</option>
               <option value="jazz">Jazz</option>
-              <option value="classical">Classical</option>
+              <option value="classical">Classical (Cổ điển)</option>
               <option value="rnb">R&B / Soul</option>
-              <option value="acoustic">Acoustic</option>
-              <option value="metal">Metal</option>
+              <option value="acoustic">Acoustic / Unplugged</option>
+              <option value="metal">Heavy Metal</option>
               <option value="kpop">K-Pop</option>
-              <option value="lofi">Lo-Fi</option>
+              <option value="lofi">Lo-Fi Chill</option>
+              <option value="live-concert">Live Concert (Sân khấu)</option>
             </optgroup>
-            <optgroup label="Tình huống">
-              <option value="dialogue">Dialogue Clarity</option>
+            <optgroup label="Tình huống giải trí">
+              <option value="dialogue">Dialogue Clarity (Rõ lời thoại)</option>
               <option value="movie">Movie / Cinema</option>
-              <option value="gaming">Gaming</option>
-              <option value="podcast">Podcast</option>
-              <option value="night">Night Mode</option>
-              <option value="meeting">Video Meeting</option>
+              <option value="cinema-immersion">Cinema Immersion 3D</option>
+              <option value="gaming">Gaming Pro (Rõ tiếng bước chân)</option>
+              <option value="podcast">Podcast & Audiobooks</option>
+              <option value="meeting">Video Meeting (Google Meet/Zoom)</option>
+              <option value="night">Night Mode (Nghe đêm)</option>
               <option value="study">Study / Focus</option>
+              <option value="asmr-relax">ASMR & Relax</option>
             </optgroup>
-            <optgroup label="Thiết bị">
-              <option value="laptop">Laptop Speakers</option>
-              <option value="headphone">Headphones</option>
-              <option value="earbuds">Earbuds</option>
-              <option value="bluetooth">Bluetooth Speaker</option>
+            <optgroup label="Tối ưu theo Thiết bị">
+              <option value="laptop">Loa Laptop nhỏ</option>
+              <option value="headphone">Tai nghe Over-Ear</option>
+              <option value="earbuds">Tai nghe nhét tai In-Ear / AirPods</option>
+              <option value="bluetooth">Loa Bluetooth di động</option>
             </optgroup>
             <optgroup label="Tùy chỉnh">
-              <option value="custom">Custom</option>
+              <option value="custom">Tự chỉnh (Custom)</option>
             </optgroup>
           </select>
         </div>
       </div>
 
-      <!-- 10-Band EQ Knobs -->
+      <!-- 10-Band Studio DSP Equalizer -->
       <div class="equalizer-section">
         <div class="eq-header">
-          <h3>🎚️ 10-Band Equalizer</h3>
-          <button class="btn-flat-eq" id="flatEqBtn" title="Reset">⚖️ Flat</button>
+          <div class="eq-title-wrap">
+            <h3>🎚️ 10-Band Studio DSP</h3>
+            <span class="eq-subtext">32Hz - 16kHz</span>
+          </div>
+          <div class="eq-header-actions">
+            <div class="view-mode-group">
+              <button class="btn-view-mode active" id="viewModeKnobsBtn" title="Chế độ Núm vặn Knobs">🎛️ Knobs</button>
+              <button class="btn-view-mode" id="viewModeGraphBtn" title="Chế độ Đồ thị tương tác Studio Curve">📈 Curve DSP</button>
+            </div>
+            <button class="btn-flat-eq" id="flatEqBtn" title="Đặt lại Flat (R)">⚖️ Flat</button>
+          </div>
         </div>
+
+        <!-- Interactive Studio DSP Frequency Response Graph -->
+        <div class="dsp-graph-section" id="dspGraphSection" style="display: none;">
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- 10-Band Rotary Knobs -->
         <div class="eq-knobs" id="eqKnobs">
-          <!-- Generated by JS -->
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- Studio DSP Channel Strip & Parametric Inspector -->
+        <div class="dsp-strip-section" id="dspStripSection">
+          <!-- Rendered by JS -->
         </div>
       </div>
 
-      <!-- Visualizer -->
+      <!-- Studio Visualizer -->
       <div class="visualizer-section" id="visualizerSection">
-        <!-- Generated by JS -->
+        <!-- Rendered by JS -->
       </div>
     </div>
 
-    <!-- Tab: Effects -->
+    <!-- Tab 2: Studio Effects -->
     <div class="tab-content" id="tab-effects">
       <div class="effects-container" id="effectsContainer">
-        <!-- Generated by JS -->
+        <!-- Rendered by JS -->
       </div>
     </div>
 
-    <!-- Tab: Presets -->
+    <!-- Tab 3: Presets -->
     <div class="tab-content" id="tab-presets">
       <div class="presets-container">
+        <!-- Search Preset -->
+        <div class="preset-search-box">
+          <input type="text" id="presetSearchInput" placeholder="🔍 Tìm kiếm nhanh preset..." autocomplete="off">
+        </div>
+
         <!-- User Presets -->
         <div class="user-presets-section">
           <div class="section-header">
-            <h3>⭐ Preset của bạn</h3>
-            <button class="btn-icon" id="savePresetBtn" title="Lưu preset">
+            <h3>⭐ Preset cá nhân của bạn</h3>
+            <button class="btn-icon-small" id="savePresetBtn" title="Lưu cấu hình hiện tại thành Preset">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
@@ -162,65 +224,65 @@
           <div class="user-presets-list" id="userPresetsList"></div>
         </div>
 
-        <!-- Site Presets -->
+        <!-- Site Profiles -->
         <div class="site-presets-section">
           <div class="section-header">
-            <h3>🌐 Cài đặt theo Site</h3>
+            <h3>🌐 Cài đặt tự động theo Trang web</h3>
           </div>
           <div class="site-presets-list" id="sitePresetsList"></div>
         </div>
 
-        <!-- Import/Export -->
+        <!-- Import / Export -->
         <div class="import-export-section">
-          <button class="btn btn-secondary" id="exportBtn">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button class="btn btn-secondary" id="exportBtn" title="Xuất toàn bộ preset & cấu hình ra file">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/>
               <line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
-            Export
+            Export Backup
           </button>
-          <button class="btn btn-secondary" id="importBtn">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button class="btn btn-secondary" id="importBtn" title="Nhập cấu hình từ file">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="17 8 12 3 7 8"/>
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
-            Import
+            Import Backup
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Hidden file input -->
+    <!-- Hidden file input for import -->
     <input type="file" id="importFileInput" accept=".txt,.aeq,.json" style="display: none;">
 
     <!-- Save Preset Modal -->
     <div class="modal-overlay" id="savePresetModal" style="display: none;">
       <div class="modal">
-        <h3>💾 Lưu Preset</h3>
-        <input type="text" id="presetNameInput" placeholder="Tên preset..." maxlength="30">
+        <h3>💾 Lưu Preset mới</h3>
+        <input type="text" id="presetNameInput" placeholder="Nhập tên preset..." maxlength="32">
         <div class="modal-options">
           <label class="checkbox-label">
             <input type="checkbox" id="saveVolumeCheck" checked>
-            <span>Lưu cả Volume</span>
+            <span>Bao gồm mức Volume</span>
           </label>
           <label class="checkbox-label">
-            <input type="checkbox" id="saveEffectsCheck">
-            <span>Lưu cả Effects</span>
+            <input type="checkbox" id="saveEffectsCheck" checked>
+            <span>Bao gồm hiệu ứng Studio Effects</span>
           </label>
         </div>
         <div class="modal-actions">
           <button class="btn btn-secondary" id="cancelSaveBtn">Hủy</button>
-          <button class="btn btn-primary" id="confirmSaveBtn">Lưu</button>
+          <button class="btn btn-primary" id="confirmSaveBtn">Lưu Preset</button>
         </div>
       </div>
     </div>
 
-    <!-- Settings Modal -->
+    <!-- Settings Modal with Shortcuts -->
     <div class="modal-overlay" id="settingsModal" style="display: none;">
       <div class="modal modal-large">
-        <h3>⚙️ Cài đặt</h3>
+        <h3>⚙️ Cài đặt & Phím tắt</h3>
         <div class="settings-content">
           <div class="setting-item">
             <span>Tự động áp dụng theo site</span>
@@ -244,7 +306,7 @@
             </label>
           </div>
           <div class="setting-item">
-            <span>Volume tối đa</span>
+            <span>Giới hạn Volume tối đa</span>
             <select id="maxVolumeLimit">
               <option value="200">200%</option>
               <option value="400">400%</option>
@@ -252,12 +314,26 @@
               <option value="800" selected>800%</option>
             </select>
           </div>
+
+          <!-- Shortcuts List -->
+          <div class="shortcuts-group">
+            <span class="shortcuts-title">⌨️ Phím tắt nhanh:</span>
+            <div class="shortcut-row"><span>Bật/Tắt Audio</span><kbd>Space</kbd></div>
+            <div class="shortcut-row"><span>Tăng / Giảm Volume</span><kbd>↑</kbd> <kbd>↓</kbd></div>
+            <div class="shortcut-row"><span>Mute / Bật tiếng</span><kbd>M</kbd></div>
+            <div class="shortcut-row"><span>So sánh A/B (Bypass)</span><kbd>A</kbd></div>
+            <div class="shortcut-row"><span>Đưa EQ về Flat</span><kbd>R</kbd></div>
+            <div class="shortcut-row"><span>Hoàn tác / Làm lại</span><kbd>Ctrl+Z</kbd> <kbd>Ctrl+Y</kbd></div>
+          </div>
         </div>
         <div class="modal-actions">
-          <button class="btn btn-primary" id="closeSettingsBtn">Đóng</button>
+          <button class="btn btn-primary" id="closeSettingsBtn">Xong</button>
         </div>
       </div>
     </div>
+
+    <!-- Toast Notifications Container -->
+    <div class="toast-container" id="toastContainer"></div>
 
     <!-- Footer -->
     <footer class="footer">
@@ -267,9 +343,9 @@
           <polyline points="15 3 21 3 21 9"/>
           <line x1="10" y1="14" x2="21" y2="3"/>
         </svg>
-        More Tools
+        Audio Tools Online
       </a>
-      <div class="footer-credit">Made with <span class="heart">❤️</span> by xuantruongg03</div>
+      <div class="footer-credit">Zyno Audio Equalizer & Booster Pro v3.0 • xuantruongg03</div>
     </footer>
   </div>
 

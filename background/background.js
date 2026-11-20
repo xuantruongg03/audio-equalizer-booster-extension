@@ -1,6 +1,5 @@
-// Background Service Worker v2.1
-// Manages offscreen document, tab tracking, and message coordination
-// Fixed: Auto-off issue when opening new tabs
+// Background Service Worker v3.0 Pro
+// Manages offscreen document, tab tracking, audio lifecycle, and message coordination
 
 const OFFSCREEN_DOCUMENT_PATH = '/offscreen/offscreen.html';
 
@@ -27,7 +26,6 @@ async function hasOffscreenDocument() {
 
 async function setupOffscreenDocument() {
     if (await hasOffscreenDocument()) {
-        console.log('Offscreen document already exists');
         return;
     }
 
@@ -44,13 +42,13 @@ async function setupOffscreenDocument() {
 
     await creatingOffscreenDocument;
     creatingOffscreenDocument = null;
-    console.log('Offscreen document created');
+    console.log('[Audio EQ Pro v3.0] Offscreen document created');
 }
 
 async function closeOffscreenDocument() {
     if (await hasOffscreenDocument()) {
         await chrome.offscreen.closeDocument();
-        console.log('Offscreen document closed');
+        console.log('[Audio EQ Pro v3.0] Offscreen document closed');
     }
     currentCaptureTabId = null;
     isCapturing = false;
@@ -65,7 +63,7 @@ async function stopExistingCapture() {
                 type: 'STOP_AUDIO_PROCESSING',
                 target: 'offscreen'
             }, () => {
-                setTimeout(resolve, 100);
+                setTimeout(resolve, 80);
             });
         });
     }
@@ -85,28 +83,20 @@ async function getTabCaptureStreamId(tabId) {
 
 async function startCapture(tabId) {
     try {
-        // Prevent rapid re-captures
         const now = Date.now();
-        if (now - lastCaptureTime < 500) {
-            console.log('Capture throttled');
+        if (now - lastCaptureTime < 400) {
             return { success: false, error: 'Please wait before starting again' };
         }
         lastCaptureTime = now;
 
-        // Stop any existing capture first
         await stopExistingCapture();
-
-        // Create offscreen document
         await setupOffscreenDocument();
 
-        // Get stream ID
         const streamId = await getTabCaptureStreamId(tabId);
 
-        // Update state
         isCapturing = true;
         currentCaptureTabId = tabId;
 
-        // Initialize audio context in offscreen
         chrome.runtime.sendMessage({
             type: 'INIT_AUDIO_CONTEXT',
             target: 'offscreen',
@@ -114,7 +104,7 @@ async function startCapture(tabId) {
             tabId: tabId
         });
 
-        // Apply saved settings after initialization
+        // Apply saved settings
         setTimeout(async () => {
             const result = await chrome.storage.local.get(['settings']);
             if (result.settings) {
@@ -128,12 +118,12 @@ async function startCapture(tabId) {
                     }
                 });
             }
-        }, 150);
+        }, 120);
 
         return { success: true, tabId: tabId };
 
     } catch (error) {
-        console.error('Start capture error:', error);
+        console.error('[Audio EQ Pro v3.0] Start capture error:', error);
         isCapturing = false;
         currentCaptureTabId = null;
         return { success: false, error: error.message };
@@ -154,7 +144,7 @@ async function stopCapture() {
         return { success: true };
 
     } catch (error) {
-        console.error('Stop capture error:', error);
+        console.error('[Audio EQ Pro v3.0] Stop capture error:', error);
         return { success: false, error: error.message };
     }
 }
@@ -170,19 +160,13 @@ async function handleMessage(message, sender, sendResponse) {
     try {
         switch (message.type) {
             case 'START_AUDIO_CAPTURE': {
-                // Get active tab
                 const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
                 if (!tab || !tab.id) {
                     sendResponse({ success: false, error: 'No active tab found' });
                     return;
                 }
 
-                // Check if already capturing this tab
-                if (isCapturing && currentCaptureTabId === tab.id) {
-                    sendResponse({ success: true, tabId: tab.id, alreadyCapturing: true });
-                    return;
-                }
-
+                // Always perform clean start to avoid getting stuck on reloaded tabs
                 const result = await startCapture(tab.id);
                 sendResponse(result);
                 break;
@@ -195,7 +179,6 @@ async function handleMessage(message, sender, sendResponse) {
             }
 
             case 'UPDATE_SETTINGS': {
-                // Forward to offscreen
                 chrome.runtime.sendMessage({
                     type: 'UPDATE_AUDIO_SETTINGS',
                     target: 'offscreen',
@@ -206,7 +189,6 @@ async function handleMessage(message, sender, sendResponse) {
             }
 
             case 'UPDATE_EFFECTS': {
-                // Forward to offscreen
                 chrome.runtime.sendMessage({
                     type: 'UPDATE_EFFECTS',
                     target: 'offscreen',
@@ -216,8 +198,21 @@ async function handleMessage(message, sender, sendResponse) {
                 break;
             }
 
+            case 'TOGGLE_AB_COMPARE': {
+                if (!isCapturing || !await hasOffscreenDocument()) {
+                    sendResponse({ success: false, error: 'Not capturing' });
+                    return;
+                }
+                chrome.runtime.sendMessage({
+                    type: 'TOGGLE_AB_COMPARE',
+                    target: 'offscreen'
+                }, (response) => {
+                    sendResponse(response || { success: false });
+                });
+                return;
+            }
+
             case 'GET_ANALYSER_DATA': {
-                // Forward to offscreen and relay response
                 if (!isCapturing || !await hasOffscreenDocument()) {
                     sendResponse({ success: false, error: 'Not capturing' });
                     return;
@@ -228,91 +223,76 @@ async function handleMessage(message, sender, sendResponse) {
                 }, (response) => {
                     sendResponse(response || { success: false });
                 });
-                return; // Don't sendResponse here, it's handled in callback
+                return;
             }
 
             case 'GET_STATUS': {
+                const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
                 const hasDoc = await hasOffscreenDocument();
+                const isActuallyActive = Boolean(
+                    hasDoc &&
+                    isCapturing &&
+                    activeTab &&
+                    activeTab.id &&
+                    currentCaptureTabId === activeTab.id
+                );
+
+                // Auto-heal any stale state if offscreen document is gone
+                if (isCapturing && !hasDoc) {
+                    isCapturing = false;
+                    currentCaptureTabId = null;
+                }
+
                 sendResponse({
-                    isActive: hasDoc && isCapturing,
-                    tabId: currentCaptureTabId
+                    isActive: isActuallyActive,
+                    tabId: currentCaptureTabId,
+                    activeTabId: activeTab ? activeTab.id : null
                 });
                 break;
             }
 
             case 'AUDIO_STARTED':
                 isCapturing = true;
-                // Update settings state
-                chrome.storage.local.get(['settings'], (result) => {
-                    if (result.settings) {
-                        result.settings.enabled = true;
-                        chrome.storage.local.set({ settings: result.settings });
-                    }
-                });
                 break;
 
             case 'AUDIO_STOPPED':
                 isCapturing = false;
                 currentCaptureTabId = null;
-                // Update settings state
-                chrome.storage.local.get(['settings'], (result) => {
-                    if (result.settings) {
-                        result.settings.enabled = false;
-                        chrome.storage.local.set({ settings: result.settings });
-                    }
-                });
                 break;
 
             case 'AUDIO_ERROR':
                 isCapturing = false;
                 currentCaptureTabId = null;
-                console.error('Audio error:', message.error);
+                console.error('[Audio EQ Pro v3.0] Audio error:', message.error);
                 break;
 
             default:
                 sendResponse({ success: false, error: 'Unknown message type' });
         }
     } catch (error) {
-        console.error('Background script error:', error);
+        console.error('[Audio EQ Pro v3.0] Background error:', error);
         sendResponse({ success: false, error: error.message });
     }
 }
 
 // ===================== TAB EVENTS =====================
-// FIX: Handle tab activation to maintain capture state
 
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
-    // Don't stop capture when switching tabs - only stop when user explicitly disables
-    // This fixes the auto-off issue when opening new tabs
-
-    // If we're capturing and the user switches to a different tab,
-    // we keep the capture running for the original tab
-    console.log('Tab activated:', activeInfo.tabId, 'Current capture tab:', currentCaptureTabId);
+    // Keep capture running for original tab when user switches tabs
 });
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
-    // Only stop if the removed tab was the one being captured
     if (tabId === currentCaptureTabId) {
-        console.log('Captured tab closed, stopping audio');
+        console.log('[Audio EQ Pro v3.0] Captured tab closed, stopping audio');
         await stopCapture();
     }
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-    // Handle page navigation in the captured tab
-    if (tabId === currentCaptureTabId && changeInfo.status === 'loading') {
-        // Page is navigating - the capture will automatically stop
-        // We need to restart it after the page loads
-        console.log('Captured tab navigating, audio will restart when page loads');
-    }
-
-    // Restart capture when page finishes loading (if it was the captured tab)
-    if (tabId === currentCaptureTabId && changeInfo.status === 'complete' && !isCapturing) {
-        console.log('Captured tab loaded, restarting capture');
-        const settings = await chrome.storage.local.get(['settings']);
-        if (settings.settings?.enabled) {
-            await startCapture(tabId);
-        }
+    // If the captured tab reloads or navigates to a new URL, cleanly stop capture immediately
+    if (tabId === currentCaptureTabId && (changeInfo.status === 'loading' || changeInfo.url)) {
+        console.log('[Audio EQ Pro v3.0] Captured tab reloaded/navigated, stopping capture cleanly');
+        await stopCapture();
     }
 });
 
@@ -323,7 +303,6 @@ chrome.runtime.onSuspend.addListener(async () => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-    // Set default settings
     chrome.storage.local.get(['settings'], (result) => {
         if (!result.settings) {
             const defaultSettings = {
@@ -352,9 +331,15 @@ chrome.runtime.onInstalled.addListener(() => {
                         enabled: false,
                         speed: 'medium'
                     },
-                    pitch: {
+                    reverb: {
                         enabled: false,
-                        semitones: 0
+                        type: 'hall',
+                        mix: 25
+                    },
+                    bassEnhancer: {
+                        enabled: false,
+                        amount: 40,
+                        freq: 90
                     }
                 }
             };
@@ -363,16 +348,4 @@ chrome.runtime.onInstalled.addListener(() => {
     });
 });
 
-// ===================== STARTUP =====================
-// Check if we should restore audio capture on extension startup
-
-chrome.runtime.onStartup.addListener(async () => {
-    const result = await chrome.storage.local.get(['settings']);
-    if (result.settings?.enabled) {
-        // Audio was enabled before browser restart
-        // We'll need to wait for user to interact with popup to restart
-        console.log('Extension started, audio was previously enabled');
-    }
-});
-
-console.log('Audio Equalizer & Booster v2.1 - Background service worker loaded');
+console.log('Audio Equalizer & Booster Pro v3.0 - Background service worker ready');

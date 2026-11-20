@@ -1,5 +1,5 @@
-// Audio Visualizer Module v2.2
-// Realtime waveform visualization - Only shows when receiving audio
+// Audio Visualizer Module v3.0 Pro
+// Realtime Spectrum Analyzer, Peak Level Meter, Oscilloscope & Circular visualizer
 
 /**
  * Visualizer modes
@@ -7,19 +7,20 @@
 export const VISUALIZER_MODES = {
     'off': { name: 'Tắt', icon: '❌' },
     'bars': { name: 'Bars', icon: '📊' },
+    'spectrum': { name: 'Spectrum', icon: '📈' },
     'wave': { name: 'Wave', icon: '🌊' },
     'circle': { name: 'Circle', icon: '⭕' }
 };
 
 /**
- * Create visualizer canvas with realtime data support
+ * Create visualizer canvas with realtime data and peak meter support
  */
 export function createVisualizer(options = {}) {
     const {
         width = 376,
-        height = 50,
+        height = 64,
         mode = 'bars',
-        barCount = 40,
+        barCount = 38,
         color = '#3b82f6'
     } = options;
 
@@ -27,7 +28,7 @@ export function createVisualizer(options = {}) {
     container.className = 'visualizer-container';
     container.innerHTML = `
         <div class="visualizer-header">
-            <span class="visualizer-title">🎵 Visualizer</span>
+            <span class="visualizer-title">🎵 Studio Visualizer</span>
             <div class="visualizer-modes">
                 ${Object.entries(VISUALIZER_MODES).map(([key, m]) => `
                     <button class="viz-mode-btn ${key === mode ? 'active' : ''}" 
@@ -37,23 +38,44 @@ export function createVisualizer(options = {}) {
                 `).join('')}
             </div>
         </div>
-        <canvas class="visualizer-canvas" width="${width}" height="${height}"></canvas>
-        <div class="visualizer-idle">
-            <span>🔇 Chưa có âm thanh</span>
+        <div class="visualizer-canvas-wrap">
+            <canvas class="visualizer-canvas" width="${width}" height="${height}"></canvas>
+            <div class="visualizer-idle">
+                <span>🔇 Đang chờ tín hiệu âm thanh...</span>
+            </div>
+        </div>
+        <!-- Peak Level Meter -->
+        <div class="peak-meter-wrap" id="peakMeterWrap">
+            <div class="peak-meter-labels">
+                <span>-60dB</span>
+                <span>-24dB</span>
+                <span>-12dB</span>
+                <span>-6dB</span>
+                <span>0dB</span>
+            </div>
+            <div class="peak-meter-bar">
+                <div class="peak-level-fill" id="peakLevelFill"></div>
+                <div class="peak-hold-line" id="peakHoldLine"></div>
+            </div>
         </div>
     `;
 
     const canvas = container.querySelector('.visualizer-canvas');
     const ctx = canvas.getContext('2d');
     const idleOverlay = container.querySelector('.visualizer-idle');
+    const peakFill = container.querySelector('#peakLevelFill');
+    const peakHold = container.querySelector('#peakHoldLine');
 
     let currentMode = mode;
-    let animationId = null;
     let dataArray = new Uint8Array(128);
-    let isRunning = false;
     let hasAudioData = false;
     let silenceCount = 0;
-    const SILENCE_THRESHOLD = 10; // frames with no audio before showing idle
+    const SILENCE_THRESHOLD = 12;
+
+    // Peak meter state
+    let peakValue = 0;
+    let peakHoldValue = 0;
+    let peakHoldDecay = 0;
 
     // Mode buttons
     container.querySelectorAll('.viz-mode-btn').forEach(btn => {
@@ -65,13 +87,15 @@ export function createVisualizer(options = {}) {
             if (currentMode === 'off') {
                 clearCanvas();
                 showIdle();
+                updatePeakMeter(0);
             }
         });
     });
 
     function showIdle() {
         idleOverlay.style.display = 'flex';
-        canvas.style.opacity = '0.3';
+        canvas.style.opacity = '0.25';
+        updatePeakMeter(0);
     }
 
     function hideIdle() {
@@ -80,68 +104,141 @@ export function createVisualizer(options = {}) {
     }
 
     function clearCanvas() {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        ctx.fillStyle = 'rgba(10, 15, 25, 0.95)';
         ctx.fillRect(0, 0, width, height);
+    }
+
+    function updatePeakMeter(currentMax) {
+        // Smooth peak response
+        peakValue = peakValue * 0.7 + currentMax * 0.3;
+
+        if (peakValue > peakHoldValue) {
+            peakHoldValue = peakValue;
+            peakHoldDecay = 0;
+        } else {
+            peakHoldDecay++;
+            if (peakHoldDecay > 15) {
+                peakHoldValue = Math.max(0, peakHoldValue - 2.5);
+            }
+        }
+
+        const pct = Math.min(100, (peakValue / 255) * 100);
+        const holdPct = Math.min(100, (peakHoldValue / 255) * 100);
+
+        if (peakFill) peakFill.style.width = `${pct}%`;
+        if (peakHold) peakHold.style.left = `${holdPct}%`;
     }
 
     function hasSignificantAudio() {
-        // Check if there's actual audio data (not all zeros or near-zero)
         let sum = 0;
+        let maxVal = 0;
         for (let i = 0; i < dataArray.length; i++) {
             sum += dataArray[i];
+            if (dataArray[i] > maxVal) maxVal = dataArray[i];
         }
+        updatePeakMeter(maxVal);
         const average = sum / dataArray.length;
-        return average > 3; // Threshold to detect actual audio
+        return average > 2.5;
     }
 
     function drawBars() {
-        // Clear with fade effect
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.fillStyle = 'rgba(8, 12, 22, 0.35)';
         ctx.fillRect(0, 0, width, height);
 
-        const barWidth = (width / barCount) * 0.75;
-        const gap = (width / barCount) * 0.25;
+        const barWidth = (width / barCount) * 0.76;
+        const gap = (width / barCount) * 0.24;
 
         for (let i = 0; i < barCount; i++) {
             const dataIndex = Math.floor(i * (dataArray.length / barCount));
             const value = dataArray[dataIndex] || 0;
-            const barHeight = (value / 255) * height * 0.9;
+            const barHeight = (value / 255) * (height - 8);
 
             const x = i * (barWidth + gap);
-            const y = height - barHeight;
+            const y = height - barHeight - 2;
 
-            // Gradient color based on height
-            const hue = 200 + (value / 255) * 80; // Blue to purple
-            const lightness = 50 + (value / 255) * 20;
+            // Vibrant Zyno gradient: Deep Cobalt -> Azure -> Electric Cyan -> White-Hot
+            const grad = ctx.createLinearGradient(0, height, 0, y);
+            grad.addColorStop(0, '#0048f0');
+            grad.addColorStop(0.35, '#0090f0');
+            grad.addColorStop(0.75, '#00f0dc');
+            grad.addColorStop(1, '#e0faff');
 
-            ctx.fillStyle = `hsl(${hue}, 75%, ${lightness}%)`;
+            ctx.fillStyle = grad;
 
-            // Draw rounded bar
-            ctx.beginPath();
             if (barHeight > 2) {
-                ctx.roundRect(x, y, barWidth, barHeight, 2);
+                ctx.beginPath();
+                ctx.roundRect(x, y, barWidth, barHeight, [2, 2, 0, 0]);
+                ctx.fill();
+
+                // Peak cap dot
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(x, y - 2, barWidth, 1.5);
             } else {
-                ctx.rect(x, height - 2, barWidth, 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.fillRect(x, height - 3, barWidth, 2);
             }
-            ctx.fill();
         }
     }
 
-    function drawWave() {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    function drawSpectrum() {
+        ctx.fillStyle = 'rgba(8, 12, 22, 0.4)';
         ctx.fillRect(0, 0, width, height);
 
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = color;
+        // Smooth curve spectrum
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+
+        const sliceWidth = width / (dataArray.length - 1);
+        for (let i = 0; i < dataArray.length; i++) {
+            const v = dataArray[i] / 255;
+            const y = height - (v * (height - 6));
+            const x = i * sliceWidth;
+
+            if (i === 0) {
+                ctx.lineTo(x, y);
+            } else {
+                // Smooth bezier curve through points
+                const prevX = (i - 1) * sliceWidth;
+                const prevY = height - ((dataArray[i - 1] / 255) * (height - 6));
+                const cpX = (prevX + x) / 2;
+                ctx.quadraticCurveTo(prevX, prevY, cpX, (prevY + y) / 2);
+            }
+        }
+        ctx.lineTo(width, height);
+        ctx.closePath();
+
+        const grad = ctx.createLinearGradient(0, 0, 0, height);
+        grad.addColorStop(0, 'rgba(0, 240, 220, 0.65)');
+        grad.addColorStop(0.45, 'rgba(0, 120, 240, 0.35)');
+        grad.addColorStop(1, 'rgba(4, 15, 38, 0.05)');
+
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        ctx.lineWidth = 2.2;
+        ctx.strokeStyle = '#00f0dc';
+        ctx.shadowColor = '#00f0dc';
+        ctx.shadowBlur = 8;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+    }
+
+    function drawWave() {
+        ctx.fillStyle = 'rgba(8, 12, 22, 0.3)';
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.lineWidth = 2.2;
+        ctx.strokeStyle = '#00f0dc';
+        ctx.shadowColor = '#00f0dc';
+        ctx.shadowBlur = 10;
         ctx.beginPath();
 
         const sliceWidth = width / dataArray.length;
         let x = 0;
 
         for (let i = 0; i < dataArray.length; i++) {
-            // Convert frequency data to wave-like appearance
             const v = (dataArray[i] / 255);
-            const y = height / 2 + (v - 0.5) * height * 0.8;
+            const y = height / 2 + (v - 0.5) * height * 0.85;
 
             if (i === 0) {
                 ctx.moveTo(x, y);
@@ -151,31 +248,28 @@ export function createVisualizer(options = {}) {
             x += sliceWidth;
         }
 
-        ctx.stroke();
-
-        // Glow effect
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = color;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#0284c7';
         ctx.stroke();
         ctx.shadowBlur = 0;
     }
 
     function drawCircle() {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+        ctx.fillStyle = 'rgba(8, 12, 22, 0.25)';
         ctx.fillRect(0, 0, width, height);
 
         const centerX = width / 2;
         const centerY = height / 2;
         const radius = Math.min(width, height) / 2 - 8;
-        const segments = 32;
+        const segments = 36;
 
         for (let i = 0; i < segments; i++) {
             const dataIndex = Math.floor(i * (dataArray.length / segments));
             const value = dataArray[dataIndex] || 0;
-            const amplitude = (value / 255) * 15;
+            const amplitude = (value / 255) * 16;
 
             const angle = (i / segments) * Math.PI * 2 - Math.PI / 2;
-            const innerRadius = radius - 3;
+            const innerRadius = radius - 2;
             const outerRadius = radius + amplitude;
 
             const x1 = centerX + Math.cos(angle) * innerRadius;
@@ -183,9 +277,9 @@ export function createVisualizer(options = {}) {
             const x2 = centerX + Math.cos(angle) * outerRadius;
             const y2 = centerY + Math.sin(angle) * outerRadius;
 
-            const hue = 200 + (value / 255) * 80;
-            ctx.strokeStyle = `hsl(${hue}, 70%, 60%)`;
-            ctx.lineWidth = 3;
+            const hue = 190 + (value / 255) * 90;
+            ctx.strokeStyle = `hsl(${hue}, 80%, 60%)`;
+            ctx.lineWidth = 2.5;
 
             ctx.beginPath();
             ctx.moveTo(x1, y1);
@@ -196,10 +290,12 @@ export function createVisualizer(options = {}) {
 
     function render() {
         if (currentMode === 'off') return;
-
         switch (currentMode) {
             case 'bars':
                 drawBars();
+                break;
+            case 'spectrum':
+                drawSpectrum();
                 break;
             case 'wave':
                 drawWave();
@@ -210,27 +306,6 @@ export function createVisualizer(options = {}) {
         }
     }
 
-    function start() {
-        if (isRunning) return;
-        isRunning = true;
-        silenceCount = 0;
-        // Don't start animation loop - we render on data update
-    }
-
-    function stop() {
-        isRunning = false;
-        if (animationId) {
-            cancelAnimationFrame(animationId);
-            animationId = null;
-        }
-        // Clear and show idle
-        clearCanvas();
-        showIdle();
-        hasAudioData = false;
-        silenceCount = 0;
-    }
-
-    // Update with realtime data from offscreen
     function updateData(data) {
         if (!data || data.length === 0) {
             silenceCount++;
@@ -241,20 +316,17 @@ export function createVisualizer(options = {}) {
             return;
         }
 
-        // Ensure we have a properly sized array
         if (dataArray.length !== data.length) {
             dataArray = new Uint8Array(data.length);
         }
         dataArray.set(data);
 
-        // Check if there's actual audio
         if (hasSignificantAudio()) {
             silenceCount = 0;
             if (!hasAudioData) {
                 hasAudioData = true;
                 hideIdle();
             }
-            // Render the current frame
             if (currentMode !== 'off') {
                 render();
             }
@@ -267,30 +339,17 @@ export function createVisualizer(options = {}) {
         }
     }
 
-    // Expose methods
-    container.start = start;
-    container.stop = stop;
+    // Initialize
+    clearCanvas();
+    showIdle();
+
     container.updateData = updateData;
-    container.setMode = (m) => {
-        currentMode = m;
-        container.querySelectorAll('.viz-mode-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.mode === m);
-        });
-        if (m === 'off') {
-            clearCanvas();
-            showIdle();
-        }
-    };
     container.reset = () => {
         hasAudioData = false;
         silenceCount = 0;
         clearCanvas();
         showIdle();
     };
-
-    // Initialize with idle state
-    clearCanvas();
-    showIdle();
 
     return container;
 }

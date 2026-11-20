@@ -1,99 +1,99 @@
-# Audio Equalizer & Booster
+# 🎛️ Zyno Audio Equalizer & Booster Pro v3.0
 
 <p align="center">
-  <img src="icons/icon.png" alt="Auto Form Filler Logo" width="128" height="128">
+  <img src="icons/icon.png" alt="Zyno Audio Pro Logo" width="128" height="128">
 </p>
 
-A comprehensive Chrome Extension that enhances audio output from any active tab using the Web Audio API.
-
-## Features
-
-- **10-Band Graphic Equalizer**: Fine-tune audio with 10 frequency bands (32Hz - 16kHz)
-- **Volume Booster**: Increase volume up to 400% (4x amplification)
-- **Dynamic Compressor**: Prevents audio clipping and distortion at high volumes
-- **Preset System**: Quick access to popular EQ configurations
-  - Flat (Default)
-  - Bass Boost
-  - Vocal Booster
-  - Treble Booster
-- **Persistent Settings**: Your preferences are saved and restored automatically
-- **Modern Dark UI**: Clean, intuitive interface with visual feedback
-
-## Technical Architecture
-
-### Manifest V3 Compliance
-This extension is built using Chrome's Manifest V3 specification, utilizing:
-
-- **Service Worker**: Background script for coordinating messages
-- **Offscreen Document**: Required for AudioContext since service workers can't access DOM
-- **Tab Capture API**: Captures audio from the active tab
-- **Storage API**: Persists user settings locally
-
-### Audio Processing Chain
-```
-Source → GainNode (Volume) → [10 BiquadFilters (EQ)] → DynamicsCompressor → Destination
-```
-
-## Installation
-
-1. Clone or download this repository
-2. Generate the icons (see `icons/README.md`)
-3. Open Chrome and navigate to `chrome://extensions/`
-4. Enable "Developer mode" in the top right
-5. Click "Load unpacked" and select the extension directory
-
-## Permissions
-
-- `tabCapture`: Capture audio from browser tabs
-- `offscreen`: Create offscreen document for audio processing
-- `storage`: Save user preferences
-- `activeTab`: Access the current active tab
-
-## Usage
-
-1. Click the extension icon in your toolbar
-2. Toggle the power switch to enable audio processing
-3. Adjust the master volume slider (0-400%)
-4. Use preset dropdown for quick EQ configurations
-5. Fine-tune individual frequency bands with the EQ sliders
-6. Settings are automatically saved
-
-## EQ Frequencies
-
-| Band | Frequency | Typical Use |
-|------|-----------|-------------|
-| 1 | 32 Hz | Sub-bass |
-| 2 | 64 Hz | Bass |
-| 3 | 125 Hz | Low-mid bass |
-| 4 | 250 Hz | Warmth |
-| 5 | 500 Hz | Body |
-| 6 | 1 kHz | Presence |
-| 7 | 2 kHz | Clarity |
-| 8 | 4 kHz | Definition |
-| 9 | 8 kHz | Brilliance |
-| 10 | 16 kHz | Air |
-
-## Technical Notes
-
-- The compressor is essential for preventing distortion when using volume boost or heavy bass EQ
-- Compressor settings: threshold -6dB, ratio 12:1, fast attack (3ms), medium release (250ms)
-- Each EQ band uses a peaking filter with Q=1.4 for smooth transitions between bands
-
-## Browser Support
-
-- Chrome 116+ (required for Offscreen API)
-- Edge 116+ (Chromium-based)
-
-## 📄 License
-
-MIT License - Read file [LICENSE](LICENSE) to learn more.
-
-## 🤝 Support
-
-If you encounter any issues or have suggestions, please:
-- Create an [Issue](../../issues) on GitHub
-- Contact via email: lexuantruong098@gmail.com
+A professional, studio-grade Chrome Extension that transforms and enhances audio output from any active tab using the Web Audio API.
 
 ---
 
-Made with ❤️ by xuantruongg03
+## 🌟 Tính năng Nổi bật (v3.0 Pro)
+
+### 🎚️ 10-Band Studio Graphic & Parametric DSP Equalizer
+- **Dual View Mode**: Chuyển đổi linh hoạt giữa giao diện **Rotary Knobs** truyền thống và **Interactive Curve DSP** (đồ thị đường cong phản hồi tần số thời gian thực).
+- **Interactive Frequency Response Graph**: Vẽ chính xác đường cong đáp tuyến tần số (Biquad filter transfer function magnitude) chuẩn phòng thu, kéo thả trực tiếp 10 điểm nút tần số (nodes) trên đồ thị logarithmic 20Hz - 20kHz.
+- **Parametric Band Inspector**: Cho phép chọn từng dải tần để tinh chỉnh chi tiết:
+  - **Bandwidth (Q factor)**: Điều chỉnh độ rộng/hẹp của dải tần từ 0.4 đến 6.0.
+  - **Filter Type**: Chọn kiểu lọc phù hợp (Peaking/Bell, Low Shelf, High Shelf).
+  - **Band Mute/Bypass**: Bật/tắt riêng biệt từng dải tần để kiểm âm.
+- **DSP Channel Strip Master**:
+  - **Stereo Pan**: Điều chỉnh cân bằng kênh trái - phải (-1.0 đến +1.0) với tính năng double-click về giữa (Center).
+  - **Preamp Gain**: Headroom gain -12dB đến +12dB kiểm soát mức gain đầu vào trước khi vào chuỗi EQ.
+  - **Mono Summing**: Nút gộp tín hiệu Mono kiểm tra độ lệch pha (Phase cancellation test) theo chuẩn Web Audio.
+  - **EQ Amplitude Range Selector**: Tùy chọn thang đo biên độ ±6dB, ±12dB hoặc ±24dB linh hoạt.
+- Nút **Flat Reset** đưa nhanh tất cả dải tần về 0dB.
+
+### 🔊 Volume Booster lên tới 800%
+- Khuếch đại âm lượng lên đến **8x (800%)** cho các video nhỏ tiếng.
+- Thanh trượt động với dải màu quang phổ thay đổi theo mức độ boost: Xanh lá (0-100%) → Xanh lam (200%) → Cam (400%) → Đỏ (800%).
+- Hỗ trợ phím tắt **Mute nhanh (M)** và điều chỉnh từng bước 5% bằng phím mũi tên.
+
+### 🏛️ Hiệu ứng Phòng thu Chuyên nghiệp (Studio Effects)
+- **Studio Reverb (Độ vang không gian)**: Mô phỏng không gian phòng thu với thuật toán Convolution Reverb:
+  - *Room* (Phòng nhỏ)
+  - *Concert Hall* (Khán phòng hòa nhạc)
+  - *Plate Reverb* (Phòng thu đĩa kim loại)
+  - *Cathedral* (Đại giáo đường vang vọng)
+  - Tùy chỉnh mức độ vang (Wet/Dry Mix) từ 0-100%.
+- **Sub-Bass Enhancer**: Bộ tổng hợp sóng hài tần số thấp giúp loa laptop và tai nghe nhỏ tái tạo tiếng bass dày và chắc mà không bị vỡ.
+- **Spatial Audio (Âm thanh vòm 3D / 7D)**: Mở rộng không gian stereo đa chiều (Wide, Surround, 3D, 7D).
+- **7D Auto-Pan**: Hiệu ứng xoay vòng âm thanh trái ↔ phải tự động với 3 tốc độ (Chậm, Vừa, Nhanh).
+- **Dual-Stage Limiter & Compressor**: Ngăn chặn méo tiếng và bảo vệ thính giác khi boost âm lượng lớn.
+
+### 📊 Studio Visualizer & Peak Meter
+- Chế độ hiển thị đa dạng: **Bars**, **Spectrum Curve**, **Oscilloscope Wave**, **Circle Radar**.
+- Tích hợp **Peak Level Meter** chuẩn dB với vạch **Peak Hold** phát hiện đỉnh tín hiệu.
+
+### ⚡ Tính năng Thông minh (Pro Tools)
+- **A/B Compare (Phím A)**: Bật/tắt nhanh chế độ Bypass để so sánh chất âm gốc và sau khi xử lý.
+- **Undo / Redo (Ctrl+Z / Ctrl+Y)**: Hoàn tác hoặc làm lại thao tác chỉnh EQ mà không sợ mất thông số.
+- **35+ Presets chuyên sâu**: Phân loại theo Cơ bản, Thể loại nhạc (Pop, Rock, EDM, Hip-Hop, Lo-Fi, Live Concert...), Tình huống (Phim ảnh, Gaming, Podcast, Night Mode, ASMR...) và Thiết bị.
+- **Cài đặt riêng theo từng trang web (Per-site Profiles)**: Tự động ghi nhớ cấu hình cho YouTube, Netflix, Spotify, Google Meet...
+- **Sao lưu & Phục hồi (Export/Import)**: Xuất file `.aeq` chia sẻ cấu hình với bạn bè.
+
+---
+
+## ⌨️ Phím tắt Nhanh (Keyboard Shortcuts)
+
+| Phím | Chức năng |
+|------|-----------|
+| `Space` | Bật / Tắt Audio Equalizer |
+| `↑` / `↓` | Tăng / Giảm âm lượng 5% |
+| `M` | Mute / Bật lại tiếng |
+| `A` | So sánh A/B (Bypass gốc vs Hiệu ứng) |
+| `R` | Đưa 10 dải tần về Flat (0dB) |
+| `Ctrl + Z` | Hoàn tác EQ (Undo) |
+| `Ctrl + Y` | Làm lại EQ (Redo) |
+
+---
+
+## 🏗️ Kiến trúc Kỹ thuật
+
+Extension tuân thủ tiêu chuẩn **Manifest V3**:
+- **Service Worker (`background.js`)**: Điều phối message và vòng đời tab.
+- **Offscreen Document (`offscreen.js`)**: Xử lý `AudioContext`, chuỗi node âm thanh không bị ngắt quãng.
+- **Chuỗi xử lý âm thanh (Audio Processing Graph)**:
+```
+Tab Audio Stream → Preamp Gain → Gain (Volume & Mono Downmix) → 10 Parametric BiquadFilters (EQ) → [Bass Enhancer] → [Auto-Pan] → [Spatial Audio] → [Convolver Reverb] → Master Stereo Pan → Dynamics Compressor → Brickwall Limiter → Analyser → Destination Output
+```
+
+---
+
+## 🚀 Cài đặt
+
+1. Tải về hoặc clone repository:
+   ```bash
+   git clone https://github.com/xuantruongg03/audio-equalizer-booster.git
+   ```
+2. Mở trình duyệt Chrome/Edge và truy cập `chrome://extensions/`.
+3. Bật **Developer mode** (Chế độ dành cho nhà phát triển).
+4. Nhấn **Load unpacked** (Tải tiện ích đã giải nén) và chọn thư mục `audio-equalizer-booster`.
+
+---
+
+## 📄 License
+
+Phát hành dưới giấy phép [MIT License](LICENSE).
+
+Made with ❤️ by **xuantruongg03**

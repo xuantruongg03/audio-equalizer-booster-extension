@@ -1,8 +1,8 @@
-// Audio Effects Module v2.1
-// Limiter, Spatial Audio, 7D Auto-Pan, Pitch (no Tempo)
+// Audio Effects Module v3.0 Pro
+// Limiter, Spatial Audio, 7D Auto-Pan, Studio Reverb, Bass Enhancer
 
 /**
- * Default effect settings
+ * Default effect settings v3.0
  */
 export const DEFAULT_EFFECTS = {
     limiter: {
@@ -21,6 +21,16 @@ export const DEFAULT_EFFECTS = {
     autoPan: {
         enabled: false,
         speed: 'medium' // 'slow', 'medium', 'fast'
+    },
+    reverb: {
+        enabled: false,
+        type: 'hall', // 'room', 'hall', 'plate', 'cathedral'
+        mix: 25
+    },
+    bassEnhancer: {
+        enabled: false,
+        amount: 40,
+        freq: 90
     }
 };
 
@@ -33,19 +43,19 @@ export const LIMITER_PRESETS = {
         settings: { enabled: false, threshold: 0, knee: 40, ratio: 1, attack: 0.003, release: 0.25 }
     },
     'gentle': {
-        name: 'Nhẹ',
+        name: 'Nhẹ (Gentle)',
         settings: { enabled: true, threshold: -3, knee: 30, ratio: 4, attack: 0.01, release: 0.25 }
     },
     'moderate': {
-        name: 'Vừa',
+        name: 'Vừa (Broadcast)',
         settings: { enabled: true, threshold: -6, knee: 20, ratio: 8, attack: 0.005, release: 0.2 }
     },
     'aggressive': {
-        name: 'Mạnh',
+        name: 'Mạnh (Punchy)',
         settings: { enabled: true, threshold: -10, knee: 10, ratio: 12, attack: 0.003, release: 0.15 }
     },
     'brick-wall': {
-        name: 'Brick Wall',
+        name: 'Brick Wall Safe',
         settings: { enabled: true, threshold: -1, knee: 0, ratio: 20, attack: 0.001, release: 0.1 }
     }
 };
@@ -62,7 +72,7 @@ export const SPATIAL_MODES = {
 };
 
 /**
- * Auto-pan speeds (for 7D effect)
+ * Auto-pan speeds
  */
 export const PAN_SPEEDS = {
     'slow': { name: 'Chậm', duration: 4000 },
@@ -71,33 +81,81 @@ export const PAN_SPEEDS = {
 };
 
 /**
+ * Reverb types
+ */
+export const REVERB_TYPES = {
+    'room': { name: 'Phòng nhỏ (Room)', icon: '🚪' },
+    'hall': { name: 'Khán phòng (Concert Hall)', icon: '🏛️' },
+    'plate': { name: 'Plate Reverb', icon: '💿' },
+    'cathedral': { name: 'Đại giáo đường (Cathedral)', icon: '⛪' }
+};
+
+/**
  * Create effects control panel
  */
 export function createEffectsPanel(currentEffects, onChange) {
-    const effects = { ...DEFAULT_EFFECTS, ...currentEffects };
+    const effects = {
+        ...DEFAULT_EFFECTS,
+        ...currentEffects,
+        reverb: { ...DEFAULT_EFFECTS.reverb, ...(currentEffects?.reverb || {}) },
+        bassEnhancer: { ...DEFAULT_EFFECTS.bassEnhancer, ...(currentEffects?.bassEnhancer || {}) }
+    };
 
     const panel = document.createElement('div');
     panel.className = 'effects-panel';
     panel.innerHTML = `
-        <!-- Limiter Section -->
+        <!-- Studio Reverb Section -->
         <div class="effect-section">
             <div class="effect-header">
                 <div class="effect-info">
-                    <span class="effect-icon">🎚️</span>
-                    <span class="effect-name">Limiter</span>
+                    <span class="effect-icon">🏛️</span>
+                    <span class="effect-name">Studio Reverb</span>
                 </div>
                 <label class="switch-small">
-                    <input type="checkbox" id="limiterToggle" ${effects.limiter.enabled ? 'checked' : ''}>
+                    <input type="checkbox" id="reverbToggle" ${effects.reverb.enabled ? 'checked' : ''}>
                     <span class="slider-small"></span>
                 </label>
             </div>
-            <p class="effect-desc">Ngăn âm thanh bị vỡ khi volume cao</p>
+            <p class="effect-desc">Tạo độ vang & không gian phòng thu chuyên nghiệp</p>
             <div class="effect-controls">
-                <select id="limiterPreset" class="effect-select">
-                    ${Object.entries(LIMITER_PRESETS).map(([key, preset]) =>
-        `<option value="${key}" ${key === 'moderate' ? 'selected' : ''}>${preset.name}</option>`
-    ).join('')}
-                </select>
+                <div class="reverb-types">
+                    ${Object.entries(REVERB_TYPES).map(([key, item]) => `
+                        <button class="reverb-type-btn ${key === effects.reverb.type ? 'active' : ''}" 
+                                data-reverb="${key}">
+                            <span>${item.icon}</span>
+                            <span>${item.name}</span>
+                        </button>
+                    `).join('')}
+                </div>
+                <div class="slider-control">
+                    <label>Mức vang (Wet Mix): <span id="reverbMixValue">${effects.reverb.mix}%</span></label>
+                    <input type="range" class="effect-slider" id="reverbMix" min="0" max="100" value="${effects.reverb.mix}">
+                </div>
+            </div>
+        </div>
+
+        <!-- Bass Enhancer Section -->
+        <div class="effect-section">
+            <div class="effect-header">
+                <div class="effect-info">
+                    <span class="effect-icon">💥</span>
+                    <span class="effect-name">Sub Bass Enhancer</span>
+                </div>
+                <label class="switch-small">
+                    <input type="checkbox" id="bassEnhancerToggle" ${effects.bassEnhancer.enabled ? 'checked' : ''}>
+                    <span class="slider-small"></span>
+                </label>
+            </div>
+            <p class="effect-desc">Tổng hợp sóng hài sub-bass ấm sâu cho tai nghe & loa nhỏ</p>
+            <div class="effect-controls">
+                <div class="slider-control">
+                    <label>Cường độ Bass: <span id="bassAmountValue">${effects.bassEnhancer.amount}%</span></label>
+                    <input type="range" class="effect-slider" id="bassAmount" min="0" max="100" value="${effects.bassEnhancer.amount}">
+                </div>
+                <div class="slider-control">
+                    <label>Tần số cắt: <span id="bassFreqValue">${effects.bassEnhancer.freq} Hz</span></label>
+                    <input type="range" class="effect-slider" id="bassFreq" min="60" max="150" step="5" value="${effects.bassEnhancer.freq}">
+                </div>
             </div>
         </div>
 
@@ -113,7 +171,7 @@ export function createEffectsPanel(currentEffects, onChange) {
                     <span class="slider-small"></span>
                 </label>
             </div>
-            <p class="effect-desc">Âm thanh không gian cho tai nghe</p>
+            <p class="effect-desc">Mở rộng không gian âm thanh vòm Stereo 3D / 7D</p>
             <div class="effect-controls">
                 <div class="spatial-modes">
                     ${Object.entries(SPATIAL_MODES).slice(1).map(([key, mode]) => `
@@ -125,7 +183,7 @@ export function createEffectsPanel(currentEffects, onChange) {
                     `).join('')}
                 </div>
                 <div class="slider-control">
-                    <label>Độ rộng: <span id="spatialWidthValue">${effects.spatial.width}%</span></label>
+                    <label>Độ mở rộng: <span id="spatialWidthValue">${effects.spatial.width}%</span></label>
                     <input type="range" class="effect-slider" id="spatialWidth" min="0" max="100" value="${effects.spatial.width}">
                 </div>
             </div>
@@ -143,7 +201,7 @@ export function createEffectsPanel(currentEffects, onChange) {
                     <span class="slider-small"></span>
                 </label>
             </div>
-            <p class="effect-desc">Âm thanh di chuyển trái ↔ phải tự động</p>
+            <p class="effect-desc">Hiệu ứng âm thanh đảo vòng mượt mà trái ↔ phải</p>
             <div class="effect-controls autopan-section">
                 <div class="autopan-control">
                     <div class="autopan-visual ${effects.autoPan.enabled ? 'animating' : ''}" id="autoPanVisual">
@@ -158,21 +216,47 @@ export function createEffectsPanel(currentEffects, onChange) {
                 </div>
             </div>
         </div>
+
+        <!-- Limiter Section -->
+        <div class="effect-section">
+            <div class="effect-header">
+                <div class="effect-info">
+                    <span class="effect-icon">🎚️</span>
+                    <span class="effect-name">Audio Limiter / Compressor</span>
+                </div>
+                <label class="switch-small">
+                    <input type="checkbox" id="limiterToggle" ${effects.limiter.enabled ? 'checked' : ''}>
+                    <span class="slider-small"></span>
+                </label>
+            </div>
+            <p class="effect-desc">Chống méo vỡ âm thanh khi boost volume lên cao</p>
+            <div class="effect-controls">
+                <select id="limiterPreset" class="effect-select">
+                    ${Object.entries(LIMITER_PRESETS).map(([key, preset]) =>
+                        `<option value="${key}" ${key === 'moderate' ? 'selected' : ''}>${preset.name}</option>`
+                    ).join('')}
+                </select>
+            </div>
+        </div>
     `;
 
-    // Get elements
+    // Elements
     const limiterToggle = panel.querySelector('#limiterToggle');
     const limiterPreset = panel.querySelector('#limiterPreset');
     const spatialToggle = panel.querySelector('#spatialToggle');
     const spatialWidth = panel.querySelector('#spatialWidth');
     const autoPanToggle = panel.querySelector('#autoPanToggle');
     const autoPanVisual = panel.querySelector('#autoPanVisual');
+    const reverbToggle = panel.querySelector('#reverbToggle');
+    const reverbMix = panel.querySelector('#reverbMix');
+    const bassEnhancerToggle = panel.querySelector('#bassEnhancerToggle');
+    const bassAmount = panel.querySelector('#bassAmount');
+    const bassFreq = panel.querySelector('#bassFreq');
 
-    // Set initial animation duration based on current speed
     const initialDuration = PAN_SPEEDS[effects.autoPan.speed]?.duration || 2000;
     autoPanVisual.style.setProperty('--pan-duration', `${initialDuration}ms`);
 
-    // Limiter events
+    // Limiter listeners
     limiterToggle.addEventListener('change', () => {
         effects.limiter.enabled = limiterToggle.checked;
         onChange(effects);
@@ -187,7 +271,48 @@ export function createEffectsPanel(currentEffects, onChange) {
         }
     });
 
-    // Spatial events
+    // Reverb listeners
+    reverbToggle.addEventListener('change', () => {
+        effects.reverb.enabled = reverbToggle.checked;
+        onChange(effects);
+    });
+
+    panel.querySelectorAll('.reverb-type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            panel.querySelectorAll('.reverb-type-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            effects.reverb.type = btn.dataset.reverb;
+            effects.reverb.enabled = true;
+            reverbToggle.checked = true;
+            onChange(effects);
+        });
+    });
+
+    reverbMix.addEventListener('input', () => {
+        effects.reverb.mix = parseInt(reverbMix.value);
+        panel.querySelector('#reverbMixValue').textContent = `${effects.reverb.mix}%`;
+        onChange(effects);
+    });
+
+    // Bass Enhancer listeners
+    bassEnhancerToggle.addEventListener('change', () => {
+        effects.bassEnhancer.enabled = bassEnhancerToggle.checked;
+        onChange(effects);
+    });
+
+    bassAmount.addEventListener('input', () => {
+        effects.bassEnhancer.amount = parseInt(bassAmount.value);
+        panel.querySelector('#bassAmountValue').textContent = `${effects.bassEnhancer.amount}%`;
+        onChange(effects);
+    });
+
+    bassFreq.addEventListener('input', () => {
+        effects.bassEnhancer.freq = parseInt(bassFreq.value);
+        panel.querySelector('#bassFreqValue').textContent = `${effects.bassEnhancer.freq} Hz`;
+        onChange(effects);
+    });
+
+    // Spatial listeners
     spatialToggle.addEventListener('change', () => {
         effects.spatial.enabled = spatialToggle.checked;
         onChange(effects);
@@ -210,7 +335,7 @@ export function createEffectsPanel(currentEffects, onChange) {
         onChange(effects);
     });
 
-    // Auto-Pan events
+    // Auto-Pan listeners
     autoPanToggle.addEventListener('change', () => {
         effects.autoPan.enabled = autoPanToggle.checked;
         autoPanVisual.classList.toggle('animating', effects.autoPan.enabled);
@@ -226,7 +351,6 @@ export function createEffectsPanel(currentEffects, onChange) {
             autoPanToggle.checked = true;
             autoPanVisual.classList.add('animating');
 
-            // Update animation speed
             const duration = PAN_SPEEDS[effects.autoPan.speed].duration;
             autoPanVisual.style.setProperty('--pan-duration', `${duration}ms`);
 
@@ -234,7 +358,7 @@ export function createEffectsPanel(currentEffects, onChange) {
         });
     });
 
-    // Expose methods
+    // Methods
     panel.getEffects = () => effects;
     panel.setEffects = (newEffects) => {
         Object.assign(effects, newEffects);
@@ -243,6 +367,23 @@ export function createEffectsPanel(currentEffects, onChange) {
         autoPanToggle.checked = effects.autoPan?.enabled || false;
         spatialWidth.value = effects.spatial?.width || 50;
         autoPanVisual.classList.toggle('animating', effects.autoPan?.enabled || false);
+
+        if (effects.reverb) {
+            reverbToggle.checked = effects.reverb.enabled || false;
+            reverbMix.value = effects.reverb.mix || 25;
+            panel.querySelector('#reverbMixValue').textContent = `${effects.reverb.mix || 25}%`;
+            panel.querySelectorAll('.reverb-type-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.reverb === effects.reverb.type);
+            });
+        }
+
+        if (effects.bassEnhancer) {
+            bassEnhancerToggle.checked = effects.bassEnhancer.enabled || false;
+            bassAmount.value = effects.bassEnhancer.amount || 40;
+            bassFreq.value = effects.bassEnhancer.freq || 90;
+            panel.querySelector('#bassAmountValue').textContent = `${effects.bassEnhancer.amount || 40}%`;
+            panel.querySelector('#bassFreqValue').textContent = `${effects.bassEnhancer.freq || 90} Hz`;
+        }
     };
 
     return panel;
