@@ -106,16 +106,19 @@ async function startCapture(tabId) {
 
         isCapturing = true;
         currentCaptureTabId = tabId;
+        let tabTitle = '';
         try {
             const t = await chrome.tabs.get(tabId);
             currentCaptureTabDomain = t?.url ? getDomain(t.url) : null;
+            tabTitle = t?.title || '';
         } catch (e) {}
 
         chrome.runtime.sendMessage({
             type: 'INIT_AUDIO_CONTEXT',
             target: 'offscreen',
             streamId: streamId,
-            tabId: tabId
+            tabId: tabId,
+            title: tabTitle
         });
 
         // Apply saved settings (check site-specific profile first)

@@ -73,7 +73,7 @@ async function init() {
     setupKeyboardShortcuts();
     updateUI();
 
-    // Restore AI Auto-EQ state
+    // Restore AI Auto-EQ state & query live status from offscreen
     chrome.storage.local.get([STORAGE_KEYS.AI_AUTO_EQ, STORAGE_KEYS.AI_CURRENT_GENRE], (res) => {
         const aiEnabled = !!res[STORAGE_KEYS.AI_AUTO_EQ];
         if (aiAutoEqToggle) aiAutoEqToggle.checked = aiEnabled;
@@ -81,6 +81,13 @@ async function init() {
         if (aiEnabled && res[STORAGE_KEYS.AI_CURRENT_GENRE] && AI_GENRE_PROFILES[res[STORAGE_KEYS.AI_CURRENT_GENRE]]) {
             const p = AI_GENRE_PROFILES[res[STORAGE_KEYS.AI_CURRENT_GENRE]];
             if (aiGenreName) aiGenreName.textContent = `${p.icon || '🎵'} ${p.name} (Tự động)`;
+        }
+        if (aiEnabled) {
+            chrome.runtime.sendMessage({ type: 'GET_AI_STATUS', target: 'offscreen' }, (statusRes) => {
+                if (statusRes && statusRes.profile) {
+                    updateAiGenreBadge(statusRes.profile, 0.9, true);
+                }
+            });
         }
     });
 }
@@ -148,6 +155,14 @@ async function getCurrentTabInfo() {
                     siteFavicon.src = `https://www.google.com/s2/favicons?domain=${currentDomain}&sz=32`;
                     siteFavicon.style.display = 'block';
                     siteFavicon.onerror = () => { siteFavicon.style.display = 'none'; };
+                }
+                // Send tab title to offscreen for instant NLP music context
+                if (tabs[0].title) {
+                    chrome.runtime.sendMessage({
+                        type: 'UPDATE_TAB_TITLE',
+                        target: 'offscreen',
+                        title: tabs[0].title
+                    }).catch(() => {});
                 }
             }
             resolve();

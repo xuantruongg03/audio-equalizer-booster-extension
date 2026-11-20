@@ -74,7 +74,7 @@ let currentEffects = {
 };
 
 // ===================== INITIALIZATION =====================
-async function initAudioContext(streamId, tabId) {
+async function initAudioContext(streamId, tabId, title = '') {
     if (isInitializing) return;
     isInitializing = true;
 
@@ -171,12 +171,9 @@ async function initAudioContext(streamId, tabId) {
                     autoClassifier.start();
                 }
             });
-            // Query tab title for metadata prior
-            chrome.tabs.get(tabId, (t) => {
-                if (t && t.title && autoClassifier) {
-                    autoClassifier.setTabTitle(t.title);
-                }
-            });
+            if (title && autoClassifier) {
+                autoClassifier.setTabTitle(title);
+            }
         } catch (e) {}
 
         // Create Effect modules
@@ -863,7 +860,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     switch (message.type) {
         case 'INIT_AUDIO_CONTEXT':
-            initAudioContext(message.streamId, message.tabId)
+            initAudioContext(message.streamId, message.tabId, message.title || '')
                 .then(() => sendResponse({ success: true }))
                 .catch((error) => sendResponse({ success: false, error: error.message }));
             return true;

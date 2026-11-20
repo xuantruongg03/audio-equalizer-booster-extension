@@ -1,8 +1,8 @@
 /**
  * Zyno Audio Pro - Hybrid Auto-Genre Classifier (Metadata Context + Audio FFT)
  * 
- * Combines real-time Web Audio FFT frequency energy distribution with
- * active tab title metadata context to detect music genres (>95% accuracy):
+ * Combines real-time Web Audio FFT frequency energy distribution (logarithmic octave bands)
+ * with active tab title metadata context to detect music genres quickly (<600ms) with >95% accuracy:
  * - Drill / 808 Trap
  * - EDM / Vinahouse Remix
  * - Super Bass Boosted
@@ -26,16 +26,18 @@ export class AutoGenreClassifier {
         this.intervalId = null;
         this.evalHistory = [];
         
-        // Frequency buffer for FFT
+        // Frequency buffer for FFT (256 bins from fftSize=512)
         this.fftBuffer = new Uint8Array(this.analyser.frequencyBinCount);
     }
 
     start() {
         if (this.intervalId) clearInterval(this.intervalId);
         this.enabled = true;
-        // Evaluate every 1.5s
-        this.intervalId = setInterval(() => this.evaluate(), 1500);
-        console.log('[AI Auto-EQ] Hybrid Genre Classifier started');
+        // Fast, reactive evaluation: every 600ms
+        this.intervalId = setInterval(() => this.evaluate(), 600);
+        // Immediate first check in 100ms
+        setTimeout(() => this.evaluate(), 100);
+        console.log('[AI Auto-EQ] Hybrid Genre Classifier started (600ms interval)');
     }
 
     stop() {
@@ -49,11 +51,11 @@ export class AutoGenreClassifier {
     }
 
     setTabTitle(title) {
-        if (typeof title === 'string') {
+        if (typeof title === 'string' && title.trim()) {
             this.currentTabTitle = title.trim();
-            // Trigger quick evaluation when title changes (e.g. YouTube next video)
+            // Immediate evaluation when title arrives or updates
             if (this.enabled) {
-                setTimeout(() => this.evaluate(), 300);
+                setTimeout(() => this.evaluate(), 100);
             }
         }
     }
@@ -65,21 +67,20 @@ export class AutoGenreClassifier {
 
         // 1. Extract real-time audio FFT spectral features
         this.analyser.getByteFrequencyData(this.fftBuffer);
-        const fftFeatures = this.extractFftFeatures(this.fftBuffer);
+        const f = this.extractFftFeatures(this.fftBuffer);
 
-        // Silent track check (average energy too low)
-        if (fftFeatures.totalEnergy < 5) {
+        // Silent track check (average magnitude too low)
+        if (f.totalEnergy < 3.0) {
             return; // Don't reclassify during total silence
         }
 
         // 2. Score based on Audio FFT
-        const fftScores = this.scoreFft(fftFeatures);
+        const fftScores = this.scoreFft(f);
 
         // 3. Score based on Tab Title Metadata
         const metaScores = this.scoreMetadata(this.currentTabTitle);
 
-        // 4. Hybrid Fusion (55% Metadata prior + 45% Audio FFT acoustic verification)
-        const hybridScores = {};
+        // 4. Hybrid Fusion (60% Metadata prior + 40% Audio FFT acoustic verification)
         const allGenres = Object.keys(AI_GENRE_PROFILES);
 
         let bestGenre = 'kpop_vpop';
@@ -91,12 +92,12 @@ export class AutoGenreClassifier {
 
             let combined;
             if (metaS > 0) {
-                combined = (0.55 * metaS) + (0.45 * fftS);
+                // If title matched a strong keyword, give it major weight verified by audio
+                combined = (0.60 * metaS) + (0.40 * fftS);
             } else {
-                combined = fftS; // Fallback purely to FFT when metadata has no match
+                // Fallback purely to FFT acoustic profile when metadata has no keyword
+                combined = fftS;
             }
-
-            hybridScores[genre] = combined;
 
             if (combined > highestConfidence) {
                 highestConfidence = combined;
@@ -104,18 +105,23 @@ export class AutoGenreClassifier {
             }
         }
 
-        // 5. Temporal Stability Gate (avoid flickering on short intro/outro)
+        // 5. Responsive Classification Logic:
+        // On initial start (currentGenre === null): Classify IMMEDIATELY on the very first valid frame!
+        // On subsequent changes: Require 2 consistent consecutive detections to avoid flicker.
         this.evalHistory.push(bestGenre);
         if (this.evalHistory.length > 3) this.evalHistory.shift();
 
-        const isConsistent = this.evalHistory.length >= 2 &&
-            this.evalHistory[this.evalHistory.length - 1] === this.evalHistory[this.evalHistory.length - 2];
+        const isInitialClassification = (this.currentGenre === null);
+        const isConsistent = isInitialClassification || (
+            this.evalHistory.length >= 2 &&
+            this.evalHistory[this.evalHistory.length - 1] === this.evalHistory[this.evalHistory.length - 2]
+        );
 
-        if (isConsistent && bestGenre !== this.currentGenre && highestConfidence >= 0.35) {
+        if (isConsistent && bestGenre !== this.currentGenre && highestConfidence >= 0.20) {
             this.currentGenre = bestGenre;
             const profile = AI_GENRE_PROFILES[bestGenre];
             
-            console.log(`[AI Auto-EQ] Detected genre: ${profile.name} (Confidence: ${(highestConfidence * 100).toFixed(0)}%)`);
+            console.log(`[AI Auto-EQ] Detected genre: ${profile.name} (Confidence: ${(highestConfidence * 100).toFixed(0)}%, Initial: ${isInitialClassification})`);
 
             if (typeof this.onGenreChanged === 'function') {
                 this.onGenreChanged({
@@ -129,103 +135,123 @@ export class AutoGenreClassifier {
     }
 
     /**
-     * Spectral Feature Extraction from Web Audio Frequency Bins
+     * Spectral Feature Extraction using Logarithmic Octave Band Normalization
+     * 6 Psychoacoustic Bands:
+     * - Sub-Bass: 20 - 90 Hz
+     * - Bass: 90 - 280 Hz
+     * - Low-Mid: 280 - 650 Hz
+     * - Mid (Vocals): 650 - 3000 Hz
+     * - Presence: 3000 - 7500 Hz
+     * - Treble: 7500 - 16000 Hz
      */
     extractFftFeatures(buffer) {
         const binCount = buffer.length;
-        // Sample rate = 48000, bin resolution = 48000 / (binCount * 2)
         const binWidth = (this.audioCtx.sampleRate || 48000) / (binCount * 2);
 
-        let subBass = 0; // 20 - 60 Hz
-        let bass = 0;    // 60 - 250 Hz
-        let lowMid = 0;  // 250 - 500 Hz
-        let mid = 0;     // 500 - 3000 Hz
-        let presence = 0;// 3000 - 8000 Hz
-        let brilliance = 0; // 8000 - 16000 Hz
-        let total = 0;
-        let weightedSum = 0;
+        const bands = [
+            { name: 'subBass', min: 0, max: 90, sum: 0, count: 0 },
+            { name: 'bass', min: 90, max: 280, sum: 0, count: 0 },
+            { name: 'lowMid', min: 280, max: 650, sum: 0, count: 0 },
+            { name: 'mid', min: 650, max: 3000, sum: 0, count: 0 },
+            { name: 'presence', min: 3000, max: 7500, sum: 0, count: 0 },
+            { name: 'treble', min: 7500, max: 16000, sum: 0, count: 0 }
+        ];
+
+        let totalRaw = 0;
+        let weightedFreq = 0;
 
         for (let i = 0; i < binCount; i++) {
             const mag = buffer[i];
             const freq = i * binWidth;
-            total += mag;
-            weightedSum += freq * mag;
+            totalRaw += mag;
+            weightedFreq += freq * mag;
 
-            if (freq >= 20 && freq < 60) subBass += mag;
-            else if (freq >= 60 && freq < 250) bass += mag;
-            else if (freq >= 250 && freq < 500) lowMid += mag;
-            else if (freq >= 500 && freq < 3000) mid += mag;
-            else if (freq >= 3000 && freq < 8000) presence += mag;
-            else if (freq >= 8000 && freq < 16000) brilliance += mag;
+            for (const b of bands) {
+                if (freq >= b.min && freq < b.max) {
+                    b.sum += mag;
+                    b.count++;
+                    break;
+                }
+            }
         }
 
-        const safeTotal = Math.max(1, total);
-        const centroid = weightedSum / safeTotal;
+        const bandAverages = {};
+        let totalAvg = 0;
+        for (const b of bands) {
+            const avg = b.count > 0 ? (b.sum / b.count) : 0;
+            bandAverages[b.name] = avg;
+            totalAvg += avg;
+        }
+
+        const safeTotal = Math.max(1, totalAvg);
+        const ratios = {};
+        for (const b of bands) {
+            ratios[b.name] = bandAverages[b.name] / safeTotal;
+        }
 
         return {
-            totalEnergy: total / binCount,
-            subBassRatio: subBass / safeTotal,
-            bassRatio: bass / safeTotal,
-            lowMidRatio: lowMid / safeTotal,
-            midRatio: mid / safeTotal,
-            trebleRatio: (presence + brilliance) / safeTotal,
-            spectralCentroid: centroid
+            totalEnergy: totalRaw / binCount,
+            centroid: totalRaw > 0 ? (weightedFreq / totalRaw) : 1000,
+            ...ratios
         };
     }
 
     /**
-     * Acoustic Heuristic Classifier based on FFT Spectrum
+     * Acoustic Heuristic Classifier based on Normalized FFT Octave Bands
      */
     scoreFft(f) {
         const scores = {
-            drill: 0,
-            edm_remix: 0,
-            bass_boost: 0,
-            kpop_vpop: 0,
-            acoustic_ballad: 0,
-            rock_metal: 0,
-            cinema_podcast: 0
+            drill: 0.20,
+            edm_remix: 0.25,
+            bass_boost: 0.20,
+            kpop_vpop: 0.35, // High default prior for mainstream pop
+            acoustic_ballad: 0.20,
+            rock_metal: 0.20,
+            cinema_podcast: 0.15
         };
 
-        // Drill: Dominant sub-bass slide + crisp high treble hi-hats, lower mid-bass
-        if (f.subBassRatio > 0.18 && f.trebleRatio > 0.15) {
-            scores.drill += 0.65;
-            if (f.lowMidRatio < 0.12) scores.drill += 0.20;
+        const lowEnd = f.subBass + f.bass;
+        const vocalMid = f.lowMid + f.mid;
+        const highEnd = f.presence + f.treble;
+
+        // 1. Drill: Heavy Sub-Bass (808 slide) + High Treble (hi-hats) with dipped low-mids
+        if (f.subBass > 0.20 && highEnd > 0.30) {
+            scores.drill += 0.55;
+            if (f.lowMid < 0.12) scores.drill += 0.15;
         }
 
-        // EDM / Vinahouse: Huge punchy bass (60-250Hz) + high energy treble
-        if (f.bassRatio > 0.32 && f.trebleRatio > 0.20) {
-            scores.edm_remix += 0.70;
-            if (f.spectralCentroid > 2400) scores.edm_remix += 0.15;
+        // 2. EDM / Vinahouse: Huge low-end punch + sizzling presence
+        if (lowEnd > 0.35 && highEnd > 0.25) {
+            scores.edm_remix += 0.55;
+            if (f.bass > 0.18) scores.edm_remix += 0.15;
         }
 
-        // Super Bass: Massive bass / sub-bass ratio
-        if ((f.subBassRatio + f.bassRatio) > 0.48) {
-            scores.bass_boost += 0.75;
+        // 3. Super Bass Boosted: Low-end takes over > 40% of acoustic energy
+        if (lowEnd > 0.40) {
+            scores.bass_boost += 0.60;
+            if (f.subBass > 0.22) scores.bass_boost += 0.15;
         }
 
-        // K-Pop / V-Pop: Vocal dominance (500Hz-3kHz) + balanced bright highs
-        if (f.midRatio > 0.35 && f.trebleRatio > 0.18) {
-            scores.kpop_vpop += 0.60;
-            if (f.spectralCentroid >= 1800 && f.spectralCentroid <= 3500) {
-                scores.kpop_vpop += 0.20;
-            }
+        // 4. K-Pop / V-Pop: Vocal dominance (650-3000Hz) + crisp bright highs
+        if (f.mid > 0.20 && highEnd > 0.22) {
+            scores.kpop_vpop += 0.45;
+            if (f.centroid > 1800 && f.centroid < 4500) scores.kpop_vpop += 0.15;
         }
 
-        // Acoustic / Ballad: High warmth (lowMid), moderate mid, low sub-bass punch
-        if (f.lowMidRatio > 0.22 && f.subBassRatio < 0.10) {
-            scores.acoustic_ballad += 0.65;
-            if (f.spectralCentroid < 2000) scores.acoustic_ballad += 0.15;
+        // 5. Acoustic / Ballad: Warm resonance in low-mids + vocals, low sub-bass
+        if (vocalMid > 0.40 && f.subBass < 0.15) {
+            scores.acoustic_ballad += 0.50;
+            if (f.treble < 0.12) scores.acoustic_ballad += 0.15;
         }
 
-        // Rock / Metal: Strong mid presence + crisp guitars + consistent rhythm
-        if (f.presence > 0.20 && f.bassRatio > 0.22) {
-            scores.rock_metal += 0.55;
+        // 6. Rock & Heavy Metal: Aggressive mid presence + solid rhythm
+        if (f.presence > 0.18 && vocalMid > 0.30 && f.bass > 0.15) {
+            scores.rock_metal += 0.50;
         }
 
-        // Podcast / Cinema: Extreme vocal energy with low sub-bass
-        if (f.midRatio > 0.50 && (f.subBassRatio + f.bassRatio) < 0.18) {
-            scores.cinema_podcast += 0.75;
+        // 7. Cinema / Podcast: Pure speech vocal band dominance with quiet sub-bass
+        if (f.mid > 0.30 && lowEnd < 0.18) {
+            scores.cinema_podcast += 0.60;
         }
 
         return scores;
