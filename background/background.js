@@ -15,6 +15,7 @@ function getDomain(url) {
 // ===================== STATE =====================
 let creatingOffscreenDocument = null;
 let currentCaptureTabId = null;
+let currentCaptureTabDomain = null;
 let isCapturing = false;
 let lastCaptureTime = 0;
 
@@ -105,6 +106,10 @@ async function startCapture(tabId) {
 
         isCapturing = true;
         currentCaptureTabId = tabId;
+        try {
+            const t = await chrome.tabs.get(tabId);
+            currentCaptureTabDomain = t?.url ? getDomain(t.url) : null;
+        } catch (e) {}
 
         chrome.runtime.sendMessage({
             type: 'INIT_AUDIO_CONTEXT',
@@ -147,6 +152,7 @@ async function startCapture(tabId) {
         console.error('[Audio EQ Pro v3.0] Start capture error:', error);
         isCapturing = false;
         currentCaptureTabId = null;
+        currentCaptureTabDomain = null;
         return { success: false, error: error.message };
     }
 }
@@ -160,6 +166,7 @@ async function stopCapture() {
 
         isCapturing = false;
         currentCaptureTabId = null;
+        currentCaptureTabDomain = null;
 
         await closeOffscreenDocument();
         return { success: true };
@@ -349,7 +356,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-    // Forward title changes to offscreen AI classifier (for dynamic SPAs like YouTube/Spotify)
+    // 1. Forward title changes to offscreen AI classifier (for dynamic SPAs like YouTube/Spotify)
     if (tabId === currentCaptureTabId && changeInfo.title) {
         chrome.runtime.sendMessage({
             type: 'UPDATE_TAB_TITLE',
@@ -358,12 +365,34 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         }).catch(() => {});
     }
 
-    // If the captured tab reloads or navigates, stop current capture session
-    if (tabId === currentCaptureTabId && (changeInfo.status === 'loading' || changeInfo.url)) {
-        console.log('[Audio EQ Pro v3.0] Captured tab reloaded/navigated, stopping capture cleanly');
-        await stopCapture();
-    } else if (changeInfo.status === 'complete' && tab && tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
-        // Auto-resume capture on completed reload if user left audio ON
+    // 2. Handle navigation on the captured tab
+    if (tabId === currentCaptureTabId) {
+        const newDomain = tab?.url ? getDomain(tab.url) : null;
+
+        // If tab navigated away to another website/domain (e.g. YouTube -> Google)
+        if (newDomain && currentCaptureTabDomain && newDomain !== currentCaptureTabDomain) {
+            console.log('[Audio EQ Pro v3.0] Tab domain changed from', currentCaptureTabDomain, 'to', newDomain, '- stopping capture');
+            await stopCapture();
+            return;
+        }
+
+        // If it's an in-page SPA navigation (URL changed within the same domain, e.g. YouTube next video in playlist)
+        if (changeInfo.url) {
+            console.log('[Audio EQ Pro v3.0] SPA In-page navigation on same domain:', newDomain, '- maintaining active audio capture stream');
+            // Do NOT stop capture! Stream remains continuously active on YouTube
+            return;
+        }
+
+        // If a real hard page reload begins (status: loading without SPA url change):
+        if (changeInfo.status === 'loading' && !changeInfo.url) {
+            console.log('[Audio EQ Pro v3.0] Hard page reload started on captured tab');
+            await stopCapture();
+            return;
+        }
+    }
+
+    // 3. Auto-resume capture on completed reload if user left audio ON
+    if (changeInfo.status === 'complete' && tab && tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
         const { masterEnabled } = await chrome.storage.local.get(['masterEnabled']);
         const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (masterEnabled && activeTab && activeTab.id === tabId && !isCapturing) {

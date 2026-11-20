@@ -106,6 +106,13 @@ async function initAudioContext(streamId, tabId) {
             sampleRate: 48000
         });
 
+        // Ensure AudioContext automatically wakes up if temporarily suspended during video transitions
+        audioContext.onstatechange = () => {
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume().catch(() => {});
+            }
+        };
+
         // Source
         sourceNode = audioContext.createMediaStreamSource(mediaStream);
 
@@ -612,6 +619,9 @@ async function stopAudioProcessing(sendMessage = true) {
 // ===================== APPLY SETTINGS =====================
 function applySettings(settings) {
     if (!audioContext || audioContext.state === 'closed') return;
+    if (audioContext.state === 'suspended') {
+        audioContext.resume().catch(() => {});
+    }
 
     const ct = audioContext.currentTime;
     const ramp = 0.04;
