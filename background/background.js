@@ -99,6 +99,21 @@ async function startCapture(tabId) {
         }
         lastCaptureTime = now;
 
+        // Verify target tab is valid and capturable before initializing
+        const tab = await chrome.tabs.get(tabId).catch(() => null);
+        if (!tab || !tab.url) {
+            return { success: false, error: 'Tab not found or inaccessible' };
+        }
+
+        const urlLower = tab.url.toLowerCase();
+        if (!urlLower.startsWith('http://') && !urlLower.startsWith('https://')) {
+            console.log('[Audio EQ Pro v3.0] Cannot capture internal/restricted page:', tab.url);
+            return { success: false, error: 'Chrome system pages cannot be captured' };
+        }
+        if (urlLower.includes('chrome.google.com/webstore') || urlLower.includes('chromewebstore.google.com')) {
+            return { success: false, error: 'Chrome Web Store cannot be captured' };
+        }
+
         await stopExistingCapture();
         await setupOffscreenDocument();
 
@@ -106,12 +121,8 @@ async function startCapture(tabId) {
 
         isCapturing = true;
         currentCaptureTabId = tabId;
-        let tabTitle = '';
-        try {
-            const t = await chrome.tabs.get(tabId);
-            currentCaptureTabDomain = t?.url ? getDomain(t.url) : null;
-            tabTitle = t?.title || '';
-        } catch (e) {}
+        let tabTitle = tab.title || '';
+        currentCaptureTabDomain = tab.url ? getDomain(tab.url) : null;
 
         chrome.runtime.sendMessage({
             type: 'INIT_AUDIO_CONTEXT',
@@ -124,8 +135,8 @@ async function startCapture(tabId) {
         // Apply saved settings (check site-specific profile first)
         setTimeout(async () => {
             try {
-                const tab = await chrome.tabs.get(tabId);
-                const domain = tab?.url ? getDomain(tab.url) : null;
+                const t = await chrome.tabs.get(tabId);
+                const domain = t?.url ? getDomain(t.url) : null;
                 const result = await chrome.storage.local.get(['settings', 'siteSettings', 'siteSettingsConfig']);
                 let finalSettings = result.settings || {};
 
@@ -152,7 +163,11 @@ async function startCapture(tabId) {
         return { success: true, tabId: tabId };
 
     } catch (error) {
-        console.error('[Audio EQ Pro v3.0] Start capture error:', error);
+        if (error.message && (error.message.includes('invoked') || error.message.includes('cannot be captured'))) {
+            console.warn('[Audio EQ Pro v3.0] Capture skipped for tab:', tabId, error.message);
+        } else {
+            console.error('[Audio EQ Pro v3.0] Start capture error:', error);
+        }
         isCapturing = false;
         currentCaptureTabId = null;
         currentCaptureTabDomain = null;
@@ -183,8 +198,20 @@ async function stopCapture() {
 // ===================== MESSAGE HANDLING =====================
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // 1. Never intercept or process messages targeted exclusively to offscreen document
+    if (!message || message.target === 'offscreen') {
+        return false;
+    }
+
+    // 2. Only return true for message types that actually send an asynchronous response
+    const asyncTypes = ['START_AUDIO_CAPTURE', 'STOP_AUDIO_CAPTURE', 'GET_STATUS', 'TOGGLE_AB_COMPARE', 'GET_ANALYSER_DATA'];
+    if (asyncTypes.includes(message.type)) {
+        handleMessage(message, sender, sendResponse);
+        return true;
+    }
+
     handleMessage(message, sender, sendResponse);
-    return true;
+    return false;
 });
 
 async function handleMessage(message, sender, sendResponse) {
@@ -242,7 +269,11 @@ async function handleMessage(message, sender, sendResponse) {
                     type: 'TOGGLE_AB_COMPARE',
                     target: 'offscreen'
                 }, (response) => {
-                    sendResponse(response || { success: false });
+                    if (chrome.runtime.lastError) {
+                        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                    } else {
+                        sendResponse(response || { success: false });
+                    }
                 });
                 return;
             }
@@ -256,7 +287,11 @@ async function handleMessage(message, sender, sendResponse) {
                     type: 'GET_ANALYSER_DATA',
                     target: 'offscreen'
                 }, (response) => {
-                    sendResponse(response || { success: false });
+                    if (chrome.runtime.lastError) {
+                        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                    } else {
+                        sendResponse(response || { success: false });
+                    }
                 });
                 return;
             }
@@ -290,25 +325,32 @@ async function handleMessage(message, sender, sendResponse) {
 
             case 'AUDIO_STARTED':
                 isCapturing = true;
+                if (typeof sendResponse === 'function') sendResponse({ received: true });
                 break;
 
             case 'AUDIO_STOPPED':
                 isCapturing = false;
                 currentCaptureTabId = null;
+                if (typeof sendResponse === 'function') sendResponse({ received: true });
                 break;
 
             case 'AUDIO_ERROR':
                 isCapturing = false;
                 currentCaptureTabId = null;
                 console.error('[Audio EQ Pro v3.0] Audio error:', message.error);
+                if (typeof sendResponse === 'function') sendResponse({ received: true });
                 break;
 
             default:
-                sendResponse({ success: false, error: 'Unknown message type' });
+                if (typeof sendResponse === 'function') {
+                    sendResponse({ success: false, error: 'Unknown message type: ' + message.type });
+                }
         }
     } catch (error) {
         console.error('[Audio EQ Pro v3.0] Background error:', error);
-        sendResponse({ success: false, error: error.message });
+        if (typeof sendResponse === 'function') {
+            sendResponse({ success: false, error: error.message });
+        }
     }
 }
 
@@ -319,10 +361,11 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
         const { masterEnabled } = await chrome.storage.local.get(['masterEnabled']);
         if (!masterEnabled) return;
 
-        const tab = await chrome.tabs.get(activeInfo.tabId);
-        if (!tab || !tab.url || (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))) {
-            return;
-        }
+        const tab = await chrome.tabs.get(activeInfo.tabId).catch(() => null);
+        if (!tab || !tab.url) return;
+        const urlLower = tab.url.toLowerCase();
+        if (!urlLower.startsWith('http://') && !urlLower.startsWith('https://')) return;
+        if (urlLower.includes('chrome.google.com/webstore') || urlLower.includes('chromewebstore.google.com')) return;
 
         // If capture is not currently active, auto-start on this activated web tab
         if (!isCapturing) {
@@ -395,9 +438,13 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     }
 
     // 3. Auto-resume capture on completed reload if user left audio ON
-    if (changeInfo.status === 'complete' && tab && tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
+    if (changeInfo.status === 'complete' && tab && tab.url) {
+        const urlLower = tab.url.toLowerCase();
+        if (!urlLower.startsWith('http://') && !urlLower.startsWith('https://')) return;
+        if (urlLower.includes('chrome.google.com/webstore') || urlLower.includes('chromewebstore.google.com')) return;
+
         const { masterEnabled } = await chrome.storage.local.get(['masterEnabled']);
-        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
         if (masterEnabled && activeTab && activeTab.id === tabId && !isCapturing) {
             console.log('[Audio EQ Pro v3.0] Auto-resuming capture for completed tab reload:', tabId);
             await startCapture(tabId);

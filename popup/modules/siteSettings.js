@@ -179,8 +179,7 @@ export function createSiteSettingsPanel(manager, currentDomain, currentSettings,
     panel.innerHTML = `
         <div class="site-settings-header">
             <div class="site-info">
-                <img class="site-favicon" src="https://www.google.com/s2/favicons?domain=${currentDomain}&sz=32" 
-                     onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><circle cx=%2212%22 cy=%2212%22 r=%2210%22 fill=%22%233b82f6%22/></svg>'" />
+                <img class="site-favicon" src="https://www.google.com/s2/favicons?domain=${currentDomain}&sz=32" />
                 <div class="site-details">
                     <span class="site-domain">${currentDomain || 'Unknown'}</span>
                     <span class="site-status">${hasSaved ? '✅ Đã lưu cài đặt' : '📝 Chưa lưu'}</span>
@@ -233,6 +232,13 @@ export function createSiteSettingsPanel(manager, currentDomain, currentSettings,
     `;
 
     // Event listeners
+    const faviconImg = panel.querySelector('.site-favicon');
+    if (faviconImg) {
+        faviconImg.addEventListener('error', () => {
+            faviconImg.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="%233b82f6"/></svg>';
+        }, { once: true });
+    }
+
     const saveBtn = panel.querySelector('.btn-save');
     const removeBtn = panel.querySelector('.btn-remove');
     const applyRecBtn = panel.querySelector('.btn-apply-rec');
@@ -303,8 +309,7 @@ export function createSavedSitesList(manager, onSelect, onRemove) {
             ${sites.map(site => `
                 <div class="site-item" data-domain="${site.domain}">
                     <img class="site-favicon-small" 
-                         src="https://www.google.com/s2/favicons?domain=${site.domain}&sz=16" 
-                         onerror="this.style.display='none'" />
+                         src="https://www.google.com/s2/favicons?domain=${site.domain}&sz=16" />
                     <span class="site-item-domain">${site.domain}</span>
                     <span class="site-item-preset">${site.preset}</span>
                     <button class="site-item-remove" data-domain="${site.domain}">×</button>
@@ -314,6 +319,12 @@ export function createSavedSitesList(manager, onSelect, onRemove) {
     `;
 
     // Event listeners
+    list.querySelectorAll('.site-favicon-small').forEach(img => {
+        img.addEventListener('error', () => {
+            img.style.display = 'none';
+        }, { once: true });
+    });
+
     list.querySelectorAll('.site-item').forEach(item => {
         item.addEventListener('click', (e) => {
             if (!e.target.classList.contains('site-item-remove')) {

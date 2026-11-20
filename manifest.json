@@ -5,6 +5,10 @@
     "description": "Zyno Audio Pro - Professional 10-band equalizer with 35+ presets, volume boost up to 800%, studio reverb, sub-bass enhancer, 7D auto-pan, spatial audio, A/B compare & per-site profiles.",
     "author": "Audio Tools",
     "permissions": ["tabCapture", "offscreen", "storage", "activeTab", "tabs"],
+    "host_permissions": [
+        "http://*/*",
+        "https://*/*"
+    ],
     "action": {
         "default_popup": "popup/popup.html",
         "default_icon": {

@@ -856,7 +856,7 @@ function handleAiGenreDetected({ genre, profile, confidence, metaMatched }) {
 
 // ===================== MESSAGE HANDLING =====================
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.target !== 'offscreen') return;
+    if (!message || message.target !== 'offscreen') return false;
 
     switch (message.type) {
         case 'INIT_AUDIO_CONTEXT':
