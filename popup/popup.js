@@ -1,7 +1,7 @@
 // Popup UI Controller v3.0 Pro
 // Glassmorphism UI, Studio Reverb, Bass Enhancer, A/B Compare, Undo/Redo, Realtime Visualizer & Keyboard Shortcuts
 
-import { STORAGE_KEYS, DEFAULT_SETTINGS, DEFAULT_EFFECTS, AUDIO_CONFIG } from '../constant.js';
+import { STORAGE_KEYS, DEFAULT_SETTINGS, DEFAULT_EFFECTS, AUDIO_CONFIG, AI_GENRE_PROFILES } from '../constant.js';
 import { EQ_BANDS, PRESETS, getFlatBands, clonePresetBands } from './modules/presets.js';
 import { createKnob, updateKnobValue } from './modules/knob.js';
 import { createEffectsPanel } from './modules/effects.js';
@@ -42,6 +42,7 @@ let exportBtn, importBtn, importFileInput;
 let settingsBtn, settingsModal, closeSettingsBtn;
 let abCompareBtn, undoBtn, redoBtn, toastContainer, presetSearchInput;
 let dspGraphSection, dspStripSection, viewModeKnobsBtn, viewModeGraphBtn;
+let aiAutoEqBar, aiGenreBadge, aiGenreName, aiAutoEqToggle;
 
 // Components
 let eqKnobs = {};
@@ -71,6 +72,17 @@ async function init() {
     setupEventListeners();
     setupKeyboardShortcuts();
     updateUI();
+
+    // Restore AI Auto-EQ state
+    chrome.storage.local.get([STORAGE_KEYS.AI_AUTO_EQ, STORAGE_KEYS.AI_CURRENT_GENRE], (res) => {
+        const aiEnabled = !!res[STORAGE_KEYS.AI_AUTO_EQ];
+        if (aiAutoEqToggle) aiAutoEqToggle.checked = aiEnabled;
+        updateAiAutoEqBar(aiEnabled);
+        if (aiEnabled && res[STORAGE_KEYS.AI_CURRENT_GENRE] && AI_GENRE_PROFILES[res[STORAGE_KEYS.AI_CURRENT_GENRE]]) {
+            const p = AI_GENRE_PROFILES[res[STORAGE_KEYS.AI_CURRENT_GENRE]];
+            if (aiGenreName) aiGenreName.textContent = `${p.icon || '🎵'} ${p.name} (Tự động)`;
+        }
+    });
 }
 
 function getDOMElements() {
@@ -117,6 +129,10 @@ function getDOMElements() {
     dspStripSection = document.getElementById('dspStripSection');
     viewModeKnobsBtn = document.getElementById('viewModeKnobsBtn');
     viewModeGraphBtn = document.getElementById('viewModeGraphBtn');
+    aiAutoEqBar = document.getElementById('aiAutoEqBar');
+    aiGenreBadge = document.getElementById('aiGenreBadge');
+    aiGenreName = document.getElementById('aiGenreName');
+    aiAutoEqToggle = document.getElementById('aiAutoEqToggle');
 }
 
 async function getCurrentTabInfo() {
@@ -536,6 +552,21 @@ function setupEventListeners() {
         viewModeGraphBtn.addEventListener('click', () => setViewMode('graph'));
     }
 
+    // AI Auto-Genre EQ Toggle
+    if (aiAutoEqToggle) {
+        aiAutoEqToggle.addEventListener('change', () => {
+            const enabled = aiAutoEqToggle.checked;
+            chrome.storage.local.set({ [STORAGE_KEYS.AI_AUTO_EQ]: enabled });
+            chrome.runtime.sendMessage({
+                type: 'SET_AI_AUTO_EQ',
+                target: 'offscreen',
+                enabled
+            });
+            updateAiAutoEqBar(enabled);
+            showToast(enabled ? '✨ Đã bật AI Auto-EQ tự động nhận diện dòng nhạc' : 'Đã tắt AI Auto-EQ', 'info');
+        });
+    }
+
     // Background messages
     chrome.runtime.onMessage.addListener(handleBackgroundMessage);
 }
@@ -944,7 +975,38 @@ function handleBackgroundMessage(message) {
             stopVisualizerUpdates();
             showToast('Lỗi xử lý âm thanh: ' + (message.error || ''), 'error');
             break;
+        case 'AI_GENRE_DETECTED':
+            if (message.profile) {
+                updateAiGenreBadge(message.profile, message.confidence, message.metaMatched);
+                if (message.profile.bands) {
+                    currentSettings.bands = { ...message.profile.bands };
+                    updateEQKnobs();
+                    dspGraph?.updateBands(currentSettings.bands);
+                }
+            }
+            break;
     }
+}
+
+function updateAiAutoEqBar(enabled) {
+    if (!aiAutoEqBar || !aiGenreName) return;
+    if (enabled) {
+        aiAutoEqBar.classList.add('active');
+        if (aiGenreName.textContent.includes('Đã tắt')) {
+            aiGenreName.textContent = 'AI Auto-EQ: Đang nghe & phân tích...';
+        }
+    } else {
+        aiAutoEqBar.classList.remove('active');
+        aiGenreName.textContent = 'AI Auto-EQ: Đã tắt';
+    }
+}
+
+function updateAiGenreBadge(profile, confidence, metaMatched) {
+    if (!aiGenreName || !aiAutoEqBar) return;
+    const confPct = Math.round((confidence || 0.8) * 100);
+    const sourceTag = metaMatched ? 'Hybrid' : 'FFT';
+    aiGenreName.textContent = `${profile.icon || '🎵'} ${profile.name} (${confPct}% ${sourceTag})`;
+    aiAutoEqBar.classList.add('active');
 }
 
 // ===================== VISUALIZER POLLING =====================

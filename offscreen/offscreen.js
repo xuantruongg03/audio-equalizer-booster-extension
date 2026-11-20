@@ -1,5 +1,9 @@
 // Offscreen Audio Processing Engine v3.0 Pro
 // Professional 10-Band EQ, 800% Gain, Studio Reverb, Bass Enhancer, Limiter, Spatial Audio, 7D Auto-Pan, A/B Compare
+// AI Hybrid Auto-Genre Detection & Adaptive Dynamic EQ
+
+import { AutoGenreClassifier } from './autoGenreClassifier.js';
+import { STORAGE_KEYS, AI_GENRE_PROFILES } from '../constant.js';
 
 const EQ_FREQUENCIES = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 const EQ_BAND_KEYS = ['32', '64', '125', '250', '500', '1k', '2k', '4k', '8k', '16k'];
@@ -18,6 +22,7 @@ let mediaStream = null;
 let currentTabId = null;
 let isInitializing = false;
 let abCompareActive = false;
+let autoClassifier = null;
 
 // Spatial audio nodes
 let spatialEnabled = false;
@@ -142,10 +147,30 @@ async function initAudioContext(streamId, tabId) {
         limiterNode.attack.value = 0.001;
         limiterNode.release.value = 0.1;
 
-        // Analyser for visualizer (FFT size 256 for responsive feedback)
+        // Analyser for visualizer & AI Auto-Genre classification (FFT size 512 for rich spectral resolution)
         analyserNode = audioContext.createAnalyser();
-        analyserNode.fftSize = 256;
+        analyserNode.fftSize = 512;
         analyserNode.smoothingTimeConstant = 0.8;
+
+        // Initialize AI Hybrid Auto-Genre Classifier
+        autoClassifier = new AutoGenreClassifier(analyserNode, audioContext, (result) => {
+            handleAiGenreDetected(result);
+        });
+
+        // Check if user has AI Auto-EQ enabled
+        try {
+            chrome.storage.local.get([STORAGE_KEYS.AI_AUTO_EQ], (res) => {
+                if (res && res[STORAGE_KEYS.AI_AUTO_EQ] && autoClassifier) {
+                    autoClassifier.start();
+                }
+            });
+            // Query tab title for metadata prior
+            chrome.tabs.get(tabId, (t) => {
+                if (t && t.title && autoClassifier) {
+                    autoClassifier.setTabTitle(t.title);
+                }
+            });
+        } catch (e) {}
 
         // Create Effect modules
         createSpatialNodes();
@@ -567,6 +592,11 @@ async function stopAudioProcessing(sendMessage = true) {
             audioContext = null;
         }
 
+        if (autoClassifier) {
+            autoClassifier.stop();
+            autoClassifier = null;
+        }
+
         const tabId = currentTabId;
         currentTabId = null;
 
@@ -773,6 +803,46 @@ function applyEffects(effects) {
     }
 }
 
+// ===================== AI HYBRID AUTO-EQ DISPATCHER =====================
+function handleAiGenreDetected({ genre, profile, confidence, metaMatched }) {
+    if (!audioContext || audioContext.state === 'closed') return;
+    const ct = audioContext.currentTime;
+    const ramp = 0.50; // Smooth 500ms musical crossfade transition
+
+    // 1. Smoothly ramp 10 parametric EQ filters to target acoustic curve
+    if (profile && profile.bands) {
+        EQ_BAND_KEYS.forEach((key, index) => {
+            if (eqFilters[index]) {
+                const targetGain = profile.bands[key] ?? 0;
+                eqFilters[index].gain.cancelScheduledValues(ct);
+                eqFilters[index].gain.setValueAtTime(eqFilters[index].gain.value, ct);
+                eqFilters[index].gain.linearRampToValueAtTime(targetGain, ct + ramp);
+            }
+        });
+    }
+
+    // 2. Apply genre DSP effects if specified
+    if (profile && profile.effects) {
+        applyEffects(profile.effects);
+    }
+
+    // 3. Broadcast real-time event to open popup & background
+    try {
+        chrome.runtime.sendMessage({
+            type: 'AI_GENRE_DETECTED',
+            genre,
+            profile,
+            confidence,
+            metaMatched
+        }).catch(() => {});
+    } catch (e) {}
+
+    // 4. Persist current detected genre in storage
+    try {
+        chrome.storage.local.set({ [STORAGE_KEYS.AI_CURRENT_GENRE]: genre });
+    } catch (e) {}
+}
+
 // ===================== MESSAGE HANDLING =====================
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.target !== 'offscreen') return;
@@ -815,6 +885,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 sendResponse({ success: false, error: 'No analyser or context not running' });
             }
             break;
+
+        case 'SET_AI_AUTO_EQ': {
+            const enabled = !!message.enabled;
+            try {
+                chrome.storage.local.set({ [STORAGE_KEYS.AI_AUTO_EQ]: enabled });
+            } catch (e) {}
+            if (autoClassifier) {
+                if (enabled) autoClassifier.start();
+                else autoClassifier.stop();
+            }
+            sendResponse({ success: true, enabled });
+            break;
+        }
+
+        case 'UPDATE_TAB_TITLE': {
+            if (autoClassifier && message.title) {
+                autoClassifier.setTabTitle(message.title);
+            }
+            sendResponse({ success: true });
+            break;
+        }
+
+        case 'GET_AI_STATUS': {
+            sendResponse({
+                success: true,
+                enabled: autoClassifier ? autoClassifier.enabled : false,
+                currentGenre: autoClassifier ? autoClassifier.currentGenre : null,
+                profile: (autoClassifier && autoClassifier.currentGenre) ? AI_GENRE_PROFILES[autoClassifier.currentGenre] : null
+            });
+            break;
+        }
 
         default:
             sendResponse({ success: false, error: 'Unknown message type' });

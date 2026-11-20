@@ -349,6 +349,15 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+    // Forward title changes to offscreen AI classifier (for dynamic SPAs like YouTube/Spotify)
+    if (tabId === currentCaptureTabId && changeInfo.title) {
+        chrome.runtime.sendMessage({
+            type: 'UPDATE_TAB_TITLE',
+            target: 'offscreen',
+            title: changeInfo.title
+        }).catch(() => {});
+    }
+
     // If the captured tab reloads or navigates, stop current capture session
     if (tabId === currentCaptureTabId && (changeInfo.status === 'loading' || changeInfo.url)) {
         console.log('[Audio EQ Pro v3.0] Captured tab reloaded/navigated, stopping capture cleanly');

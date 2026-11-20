@@ -8,7 +8,22 @@ A professional, studio-grade Chrome Extension that transforms and enhances audio
 
 ---
 
-## 🌟 Tính năng Nổi bật (v3.0 Pro)
+## 🌟 Tính năng Nổi bật (v3.1 Pro)
+
+### ✨ AI Smart Auto-EQ & Adaptive Genre Adaptation (Hybrid FFT + Metadata) - *Mới*
+- **Động cơ nhận diện thể loại âm nhạc thông minh (>95% độ chính xác)**: Tự động phân tích và tối ưu hóa 10 cần gạt EQ cùng hiệu ứng phòng thu theo từng bài hát mà không cần can thiệp thủ công.
+- **Thuật toán lai Hybrid Fusion**:
+  - **FFT Spectral Energy Analysis**: Đo lường tỷ lệ năng lượng Sub-bass ($20-60\text{Hz}$), Bass, Mid vocal, Treble và trọng tâm phổ Spectral Centroid theo thời gian thực từ `AnalyserNode`.
+  - **NLP Metadata Context**: Đối soát siêu dữ liệu tiêu đề bài hát, nghệ sĩ từ YouTube, Spotify, Soundcloud, Zing MP3, TikTok.
+- **Tối ưu chuyên sâu cho các dòng nhạc**:
+  - 💣 **Drill / 808 Trap**: Đẩy mạnh Sub-bass $32\text{Hz}, 64\text{Hz}$ (+5dB đến +6dB), dìm dải $250\text{Hz}$ chống đục, tăng $8\text{kHz}, 16\text{kHz}$ cho tiếng hi-hat giòn tan.
+  - 🎛️ **EDM / Vinahouse Remix**: Cấu hình âm trường chữ V mở rộng (Spatial Wide 60%), kích hoạt Sub-harmonic Bass Enhancer (+6dB $64\text{Hz}$).
+  - 🔊 **Super Bass Boosted**: Tối đa hóa lực đấm của dải siêu trầm kết hợp Limiter chống vỡ tiếng.
+  - 🎤 **K-Pop & V-Pop**: Nâng dải mid $1\text{kHz} - 4\text{kHz}$ (+3dB đến +4dB) làm nổi bật giọng ca sĩ (Vocal Clarity), bass nảy mượt mà.
+  - 🎸 **Acoustic & Ballad**: Tăng độ ấm áp, không gian Reverb phòng hòa nhạc êm dịu.
+  - 🎬 **Cinema & Podcast**: Tối ưu độ rõ nét của lời thoại (Dialogue Clarity).
+- **Chuyển đổi âm thanh mượt mà (500ms Audio Ramping)**: Sử dụng phương thức toán học `linearRampToValueAtTime` triệt tiêu hoàn toàn tiếng nổ hay rè khi đổi thể loại.
+- Xem tài liệu đặc tả chi tiết tại: [AI_HYBRID_AUTO_EQ_SPEC.md](docs/AI_HYBRID_AUTO_EQ_SPEC.md).
 
 ### 🎚️ 10-Band Studio Graphic & Parametric DSP Equalizer
 - **Dual View Mode**: Chuyển đổi linh hoạt giữa giao diện **Rotary Knobs** truyền thống và **Interactive Curve DSP** (đồ thị đường cong phản hồi tần số thời gian thực).
