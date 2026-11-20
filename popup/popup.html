@@ -105,22 +105,27 @@
       <!-- Volume Section -->
       <div class="volume-section">
         <div class="volume-header">
-          <div class="volume-title" id="muteToggleBtn" title="Click để Mute / Bật tiếng (M)">
+          <div class="volume-title" id="muteToggleBtn" title="Click để Mute / Bật tiếng (Phím M)">
             <span class="vol-icon" id="volumeIcon">🔊</span>
-            <span>Master Volume</span>
+            <span class="vol-label">Master Volume</span>
           </div>
-          <span class="volume-value-display" id="volumeDisplay">100%</span>
+          <div class="volume-header-right">
+            <button class="btn-boost-badge" id="boostToggleBtn" title="Khuếch đại âm lượng an toàn cho video/nhạc quá nhỏ tiếng (+6dB)">
+              <span class="boost-icon">⚡</span>
+              <span class="boost-label">Boost</span>
+            </button>
+            <span class="volume-value-display" id="volumeDisplay">100%</span>
+          </div>
         </div>
         <div class="volume-slider-container">
-          <input type="range" class="volume-slider" id="volumeSlider" min="0" max="800" value="100" style="--volume-percent: 12.5%;">
-        </div>
-        <div class="volume-marks">
-          <span class="volume-mark" data-value="0">0%</span>
-          <span class="volume-mark active" data-value="100">100%</span>
-          <span class="volume-mark" data-value="200">200%</span>
-          <span class="volume-mark" data-value="400">400%</span>
-          <span class="volume-mark" data-value="600">600%</span>
-          <span class="volume-mark" data-value="800">800%</span>
+          <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" style="--volume-percent: 100%;">
+          <div class="volume-marks">
+            <span class="volume-mark" data-value="0" style="left: calc(9px + (100% - 18px) * 0);">0%</span>
+            <span class="volume-mark" data-value="25" style="left: calc(9px + (100% - 18px) * 0.25);">25%</span>
+            <span class="volume-mark" data-value="50" style="left: calc(9px + (100% - 18px) * 0.50);">50%</span>
+            <span class="volume-mark" data-value="75" style="left: calc(9px + (100% - 18px) * 0.75);">75%</span>
+            <span class="volume-mark active" data-value="100" style="left: calc(9px + (100% - 18px) * 1.0);">100%</span>
+          </div>
         </div>
       </div>
 
@@ -329,12 +334,11 @@
             </label>
           </div>
           <div class="setting-item">
-            <span>Giới hạn Volume tối đa</span>
+            <span>Chế độ Booster (Khuếch đại âm lượng)</span>
             <select id="maxVolumeLimit">
-              <option value="200">200%</option>
-              <option value="400">400%</option>
-              <option value="600">600%</option>
-              <option value="800" selected>800%</option>
+              <option value="100">Chuẩn Studio 100% (Âm thanh nguyên bản, khuyên dùng)</option>
+              <option value="200" selected>Boost +6dB (Khuếch đại 2x cho video nhỏ tiếng)</option>
+              <option value="400">Boost +12dB (Khuếch đại 4x cực lớn)</option>
             </select>
           </div>
 

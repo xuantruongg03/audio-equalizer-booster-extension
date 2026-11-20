@@ -641,9 +641,13 @@ function applySettings(settings) {
         stereoPannerNode.pan.linearRampToValueAtTime(settings.pan, ct + ramp);
     }
 
-    // Volume (0-800%)
+    // Volume (0-100%, with optional Boost multiplier)
     if (gainNode && settings.volume !== undefined) {
-        const gainValue = settings.volume / 100;
+        let gainValue = Math.min(100, Math.max(0, settings.volume)) / 100;
+        if (settings.boostEnabled) {
+            const multiplier = settings.boostMultiplier || 2.0;
+            gainValue *= multiplier;
+        }
         gainNode.gain.cancelScheduledValues(ct);
         gainNode.gain.setValueAtTime(gainNode.gain.value, ct);
         gainNode.gain.linearRampToValueAtTime(gainValue, ct + ramp);

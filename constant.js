@@ -12,12 +12,15 @@ export const STORAGE_KEYS = {
     HISTORY: 'eqHistory',
     DARK_MODE: 'darkMode',
     AI_AUTO_EQ: 'aiAutoEqEnabled',
-    AI_CURRENT_GENRE: 'aiCurrentGenre'
+    AI_CURRENT_GENRE: 'aiCurrentGenre',
+    BOOST_ENABLED: 'boostEnabled',
+    BOOST_MULTIPLIER: 'boostMultiplier',
+    MAX_VOLUME_LIMIT: 'maxVolumeLimit'
 };
 
 export const AUDIO_CONFIG = {
     MIN_VOLUME: 0,
-    MAX_VOLUME: 800,
+    MAX_VOLUME: 100,
     DEFAULT_VOLUME: 100,
     MIN_GAIN_DB: -24,
     MAX_GAIN_DB: 24,
@@ -82,7 +85,9 @@ export const DEFAULT_SETTINGS = {
     range: AUDIO_CONFIG.DEFAULT_RANGE_DB,
     bands: { ...DEFAULT_BANDS },
     effects: { ...DEFAULT_EFFECTS },
-    bandParams: {}
+    bandParams: {},
+    boostEnabled: false,
+    boostMultiplier: 2.0
 };
 
 export const SITE_SETTINGS_DEFAULT_CONFIG = {

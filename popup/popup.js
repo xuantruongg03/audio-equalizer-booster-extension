@@ -32,7 +32,7 @@ const MAX_UNDO_DEPTH = AUDIO_CONFIG.MAX_UNDO_DEPTH;
 let powerToggle, statusIndicator, statusText;
 let siteFavicon, siteDomain, saveSiteBtn;
 let siteProfileBtn, siteProfileIcon, siteProfileLabel, siteProfileDelBtn;
-let volumeSlider, volumeDisplay, volumeIcon, muteToggleBtn;
+let volumeSlider, volumeDisplay, volumeIcon, muteToggleBtn, boostToggleBtn, maxVolumeLimitSelect;
 let presetSelect, eqKnobsContainer, flatEqBtn;
 let visualizerSection, effectsContainer;
 let userPresetsList, sitePresetsList;
@@ -100,6 +100,8 @@ function getDOMElements() {
     volumeDisplay = document.getElementById('volumeDisplay');
     volumeIcon = document.getElementById('volumeIcon');
     muteToggleBtn = document.getElementById('muteToggleBtn');
+    boostToggleBtn = document.getElementById('boostToggleBtn');
+    maxVolumeLimitSelect = document.getElementById('maxVolumeLimit');
     presetSelect = document.getElementById('presetSelect');
     eqKnobsContainer = document.getElementById('eqKnobs');
     flatEqBtn = document.getElementById('flatEqBtn');
@@ -449,6 +451,12 @@ function setupEventListeners() {
     if (muteToggleBtn) {
         muteToggleBtn.addEventListener('click', toggleMute);
     }
+    if (boostToggleBtn) {
+        boostToggleBtn.addEventListener('click', toggleBoost);
+    }
+    if (maxVolumeLimitSelect) {
+        maxVolumeLimitSelect.addEventListener('change', handleMaxVolumeLimitChange);
+    }
 
     // Volume quick marks
     document.querySelectorAll('.volume-mark').forEach(mark => {
@@ -648,8 +656,8 @@ function setupKeyboardShortcuts() {
 }
 
 function changeVolumeBy(delta) {
-    let newVal = currentSettings.volume + delta;
-    newVal = Math.max(0, Math.min(800, newVal));
+    let newVal = (currentSettings.volume !== undefined ? currentSettings.volume : 100) + delta;
+    newVal = Math.max(0, Math.min(100, newVal));
     volumeSlider.value = newVal;
     handleVolumeSlider();
 }
@@ -660,10 +668,52 @@ function toggleMute() {
         volumeSlider.value = 0;
         isMuted = true;
     } else {
-        volumeSlider.value = preMuteVolume || 100;
+        volumeSlider.value = Math.min(100, preMuteVolume || 100);
         isMuted = false;
     }
     handleVolumeSlider();
+}
+
+function toggleBoost() {
+    currentSettings.boostEnabled = !currentSettings.boostEnabled;
+    updateBoostUI();
+    saveSettings();
+    sendSettingsUpdate();
+    const mult = currentSettings.boostMultiplier || 2.0;
+    const label = mult === 4.0 ? '+12dB (4x)' : '+6dB (2x)';
+    const msg = currentSettings.boostEnabled 
+        ? `⚡ Đã bật Khuyếch đại âm lượng (${label})` 
+        : `Đã tắt Khuyếch đại âm lượng`;
+    showToast(msg, currentSettings.boostEnabled ? 'success' : 'info');
+}
+
+function updateBoostUI() {
+    if (!boostToggleBtn) return;
+    const isBoost = !!currentSettings.boostEnabled;
+    boostToggleBtn.classList.toggle('active', isBoost);
+    const mult = currentSettings.boostMultiplier || 2.0;
+    const label = mult === 4.0 ? '+12dB' : '+6dB';
+    boostToggleBtn.innerHTML = isBoost
+        ? `<span class="boost-icon">⚡</span><span class="boost-label">Boost ${label}</span>`
+        : `<span class="boost-icon">⚡</span><span class="boost-label">Boost</span>`;
+}
+
+function handleMaxVolumeLimitChange() {
+    if (!maxVolumeLimitSelect) return;
+    const val = parseInt(maxVolumeLimitSelect.value);
+    if (val === 100) {
+        currentSettings.boostEnabled = false;
+        currentSettings.boostMultiplier = 1.0;
+    } else if (val === 400) {
+        currentSettings.boostMultiplier = 4.0;
+        currentSettings.boostEnabled = true;
+    } else {
+        currentSettings.boostMultiplier = 2.0;
+        currentSettings.boostEnabled = true;
+    }
+    updateBoostUI();
+    saveSettings();
+    sendSettingsUpdate();
 }
 
 // ===================== A/B COMPARE =====================
@@ -725,33 +775,28 @@ async function handlePowerToggle() {
 }
 
 function handleVolumeSlider() {
-    const value = parseInt(volumeSlider.value);
+    const value = Math.max(0, Math.min(100, parseInt(volumeSlider.value) || 0));
     currentSettings.volume = value;
 
     // Update display & Mute state
     volumeDisplay.textContent = `${value}%`;
     isMuted = value === 0;
     if (volumeIcon) {
-        volumeIcon.textContent = value === 0 ? '🔇' : value < 100 ? '🔉' : '🔊';
+        volumeIcon.textContent = value === 0 ? '🔇' : value < 40 ? '🔉' : '🔊';
     }
 
-    // Update dynamic track gradient
-    const percent = (value / 800) * 100;
-    volumeSlider.style.setProperty('--volume-percent', `${percent}%`);
+    // Update dynamic track gradient (0-100%)
+    volumeSlider.style.setProperty('--volume-percent', `${value}%`);
 
-    // Dynamic color shift
-    if (value <= 100) {
-        volumeDisplay.style.background = 'linear-gradient(135deg, #22c55e, #10b981)';
-    } else if (value <= 250) {
-        volumeDisplay.style.background = 'linear-gradient(135deg, #38bdf8, #3b82f6)';
-    } else if (value <= 500) {
-        volumeDisplay.style.background = 'linear-gradient(135deg, #f59e0b, #f97316)';
+    // Dynamic color styling: Zyno Cyber Cyan palette
+    if (value === 0) {
+        volumeDisplay.style.background = 'linear-gradient(135deg, #64748b, #94a3b8)';
     } else {
-        volumeDisplay.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+        volumeDisplay.style.background = 'linear-gradient(135deg, #00f0dc 0%, #0090f0 100%)';
     }
     volumeDisplay.style.webkitBackgroundClip = 'text';
 
-    // Update marks
+    // Update marks: mathematically matches 0, 25, 50, 75, 100
     document.querySelectorAll('.volume-mark').forEach(mark => {
         const markValue = parseInt(mark.dataset.value);
         mark.classList.toggle('active', markValue === value);
@@ -1136,7 +1181,7 @@ async function loadSettings() {
 async function saveSettings() {
     return new Promise((resolve) => {
         const settingsToSave = {
-            volume: currentSettings.volume,
+            volume: currentSettings.volume !== undefined ? Math.min(100, currentSettings.volume) : 100,
             preset: currentSettings.preset,
             bands: { ...currentSettings.bands },
             effects: { ...currentSettings.effects },
@@ -1145,7 +1190,9 @@ async function saveSettings() {
             mono: !!currentSettings.mono,
             range: currentSettings.range || AUDIO_CONFIG.DEFAULT_RANGE_DB,
             bandParams: currentSettings.bandParams || {},
-            enabled: currentSettings.enabled
+            enabled: currentSettings.enabled,
+            boostEnabled: !!currentSettings.boostEnabled,
+            boostMultiplier: currentSettings.boostMultiplier || 2.0
         };
 
         // If currently on a domain with custom settings saved, sync updates directly to this site's profile
@@ -1219,13 +1266,15 @@ async function sendSettingsUpdate() {
     chrome.runtime.sendMessage({
         type: 'UPDATE_SETTINGS',
         settings: {
-            volume: currentSettings.volume,
+            volume: currentSettings.volume !== undefined ? Math.min(100, currentSettings.volume) : 100,
             bands: currentSettings.bands,
             effects: currentSettings.effects,
             preamp: currentSettings.preamp || 0,
             pan: currentSettings.pan || 0,
             mono: !!currentSettings.mono,
-            bandParams: currentSettings.bandParams || {}
+            bandParams: currentSettings.bandParams || {},
+            boostEnabled: !!currentSettings.boostEnabled,
+            boostMultiplier: currentSettings.boostMultiplier || 2.0
         }
     });
 }
@@ -1243,9 +1292,15 @@ function updateUI() {
     powerToggle.checked = currentSettings.enabled;
     updateStatus(currentSettings.enabled);
 
-    // Volume
-    volumeSlider.value = currentSettings.volume;
+    // Volume & Boost
+    volumeSlider.max = 100;
+    volumeSlider.value = currentSettings.volume !== undefined ? Math.min(100, currentSettings.volume) : 100;
     handleVolumeSlider();
+    updateBoostUI();
+    if (maxVolumeLimitSelect) {
+        const mult = currentSettings.boostMultiplier || 2.0;
+        maxVolumeLimitSelect.value = mult === 4.0 ? '400' : '200';
+    }
 
     // Preset
     presetSelect.value = PRESETS[currentSettings.preset] ? currentSettings.preset : 'custom';
