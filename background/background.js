@@ -135,7 +135,7 @@ async function startCapture(tabId) {
         // Apply saved settings (check site-specific profile first)
         setTimeout(async () => {
             try {
-                const t = await chrome.tabs.get(tabId);
+                const t = await chrome.tabs.get(tabId).catch(() => null);
                 const domain = t?.url ? getDomain(t.url) : null;
                 const result = await chrome.storage.local.get(['settings', 'siteSettings', 'siteSettingsConfig']);
                 let finalSettings = result.settings || {};
