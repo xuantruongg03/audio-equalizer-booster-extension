@@ -211,6 +211,7 @@ body::-webkit-scrollbar-thumb:hover {
   display: inline-block;
   width: 44px;
   height: 24px;
+  flex-shrink: 0;
 }
 
 .switch input { opacity: 0; width: 0; height: 0; }
@@ -255,6 +256,7 @@ input:checked + .slider:before {
   display: inline-block;
   width: 32px;
   height: 18px;
+  flex-shrink: 0;
 }
 
 .switch-small input { opacity: 0; width: 0; height: 0; }
@@ -335,13 +337,19 @@ input:checked + .slider:before {
   letter-spacing: 0.2px;
 }
 
-.site-badge {
+.site-profile-control {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 8px;
-  background: rgba(0, 240, 220, 0.08);
-  border: 1px solid rgba(0, 240, 220, 0.2);
+}
+
+.site-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  background: rgba(0, 240, 220, 0.06);
+  border: 1px solid rgba(0, 240, 220, 0.18);
   border-radius: 6px;
 }
 
@@ -349,11 +357,12 @@ input:checked + .slider:before {
   width: 13px;
   height: 13px;
   border-radius: 3px;
+  object-fit: contain;
 }
 
 .site-domain {
   color: #e2e8f0;
-  max-width: 120px;
+  max-width: 110px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -361,18 +370,62 @@ input:checked + .slider:before {
   font-weight: 600;
 }
 
-.btn-site-save {
-  background: none;
-  border: none;
-  font-size: 11px;
-  cursor: pointer;
-  opacity: 0.75;
-  transition: transform 0.2s, opacity 0.2s;
+.site-profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.btn-site-save:hover {
-  opacity: 1;
-  transform: scale(1.15);
+.btn-site-profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(2, 8, 22, 0.6);
+  border: 1px solid rgba(0, 240, 220, 0.22);
+  border-radius: 6px;
+  padding: 2px 7px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-site-profile:hover {
+  background: rgba(0, 240, 220, 0.15);
+  border-color: var(--zyno-cyan);
+  color: #fff;
+}
+
+.btn-site-profile.active {
+  background: rgba(0, 240, 220, 0.2);
+  border-color: var(--zyno-cyan);
+  color: var(--zyno-cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 220, 0.25);
+}
+
+.btn-site-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 4px;
+  color: #f87171;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.btn-site-del:hover {
+  background: #ef4444;
+  color: #fff;
+  border-color: #ef4444;
 }
 
 /* ===================== TABS ===================== */
@@ -1117,8 +1170,14 @@ input:checked + .slider:before {
 
 .effect-select {
   width: 100%;
-  padding: 8px 10px;
-  background: rgba(8, 20, 44, 0.75);
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding: 8px 36px 8px 12px;
+  background-color: rgba(8, 20, 44, 0.75);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2300f0dc' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
   border: 1px solid var(--zyno-border-card);
   border-radius: 8px;
   color: #fff;
@@ -1366,13 +1425,20 @@ input:checked + .slider:before {
 }
 
 .setting-item select {
-  padding: 4px 8px;
-  background: rgba(6, 17, 38, 0.8);
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding: 4px 28px 4px 10px;
+  background-color: rgba(6, 17, 38, 0.8);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2300f0dc' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
   border: 1px solid var(--zyno-border-card);
   border-radius: 6px;
   color: #fff;
   font-size: 11px;
   outline: none;
+  cursor: pointer;
 }
 
 /* Shortcuts Cheat Sheet */
@@ -1810,8 +1876,14 @@ kbd {
 
 .inspector-select {
   width: 100%;
-  padding: 4px 6px;
-  background: rgba(6, 14, 32, 0.85);
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding: 5px 28px 5px 8px;
+  background-color: rgba(6, 14, 32, 0.85);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2300f0dc' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
   border: 1px solid rgba(0, 240, 220, 0.2);
   border-radius: 6px;
   color: #f8fafc;

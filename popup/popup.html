@@ -63,10 +63,18 @@
         <span class="status-indicator" id="statusIndicator"></span>
         <span class="status-text" id="statusText">Off</span>
       </div>
-      <div class="site-badge" id="siteBadge">
-        <img class="site-favicon" id="siteFavicon" src="" style="display: none;" />
-        <span class="site-domain" id="siteDomain">-</span>
-        <button class="btn-site-save" id="saveSiteBtn" title="Lưu profile cho trang này">💾</button>
+      <div class="site-profile-control" id="siteProfileControl">
+        <div class="site-badge" id="siteBadge">
+          <img class="site-favicon" id="siteFavicon" src="" style="display: none;" />
+          <span class="site-domain" id="siteDomain">-</span>
+        </div>
+        <div class="site-profile-actions">
+          <button class="btn-site-profile" id="siteProfileBtn" title="Chuyển đổi hoặc lưu cấu hình riêng cho website này">
+            <span class="site-profile-icon" id="siteProfileIcon">🌐</span>
+            <span class="site-profile-label" id="siteProfileLabel">Chung</span>
+          </button>
+          <button class="btn-site-del" id="siteProfileDelBtn" title="Xóa cấu hình riêng, dùng cấu hình chung" style="display: none;">✕</button>
+        </div>
       </div>
     </div>
 

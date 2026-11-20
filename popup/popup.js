@@ -41,6 +41,7 @@ const MAX_UNDO_DEPTH = 30;
 // ===================== DOM ELEMENTS =====================
 let powerToggle, statusIndicator, statusText;
 let siteFavicon, siteDomain, saveSiteBtn;
+let siteProfileBtn, siteProfileIcon, siteProfileLabel, siteProfileDelBtn;
 let volumeSlider, volumeDisplay, volumeIcon, muteToggleBtn;
 let presetSelect, eqKnobsContainer, flatEqBtn;
 let visualizerSection, effectsContainer;
@@ -76,6 +77,7 @@ async function init() {
     generateEffectsPanel();
     generateUserPresetsList();
     generateSitePresetsList();
+    updateSiteProfileUI();
     setupEventListeners();
     setupKeyboardShortcuts();
     updateUI();
@@ -88,6 +90,10 @@ function getDOMElements() {
     siteFavicon = document.getElementById('siteFavicon');
     siteDomain = document.getElementById('siteDomain');
     saveSiteBtn = document.getElementById('saveSiteBtn');
+    siteProfileBtn = document.getElementById('siteProfileBtn');
+    siteProfileIcon = document.getElementById('siteProfileIcon');
+    siteProfileLabel = document.getElementById('siteProfileLabel');
+    siteProfileDelBtn = document.getElementById('siteProfileDelBtn');
     volumeSlider = document.getElementById('volumeSlider');
     volumeDisplay = document.getElementById('volumeDisplay');
     volumeIcon = document.getElementById('volumeIcon');
@@ -453,8 +459,43 @@ function setupEventListeners() {
     // Flat EQ
     flatEqBtn.addEventListener('click', handleFlatEQ);
 
-    // Save site profile
-    saveSiteBtn.addEventListener('click', handleSaveSite);
+    // Save site profile & Toggle site custom profile
+    if (saveSiteBtn) saveSiteBtn.addEventListener('click', handleSaveSite);
+
+    if (siteProfileBtn) {
+        siteProfileBtn.addEventListener('click', async () => {
+            if (!currentDomain) return;
+            const hasCustom = siteManager.hasSiteSettings(currentDomain);
+            if (!hasCustom) {
+                await siteManager.saveForSite(currentDomain, currentSettings);
+                updateSiteProfileUI();
+                generateSitePresetsList();
+                showToast(`Đã tạo cấu hình riêng cho ${currentDomain}`, 'success');
+            } else {
+                await siteManager.saveForSite(currentDomain, currentSettings);
+                generateSitePresetsList();
+                showToast(`Đã cập nhật cấu hình cho ${currentDomain}`, 'success');
+            }
+        });
+    }
+
+    if (siteProfileDelBtn) {
+        siteProfileDelBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (!currentDomain) return;
+            await siteManager.removeForSite(currentDomain);
+            await loadSettings();
+            updateEQKnobs();
+            dspGraph?.updateBands(currentSettings.bands);
+            if (effectsPanel) effectsPanel.setEffects(currentSettings.effects);
+            volumeSlider.value = currentSettings.volume;
+            handleVolumeSlider();
+            updateSiteProfileUI();
+            generateSitePresetsList();
+            sendSettingsUpdate();
+            showToast(`Đã xóa cấu hình riêng của ${currentDomain}, dùng cấu hình chung`, 'info');
+        });
+    }
 
     // A/B Compare Toggle
     if (abCompareBtn) {
@@ -638,6 +679,7 @@ async function handlePowerToggle() {
                 currentSettings.enabled = true;
                 powerToggle.checked = true;
                 updateStatus(true);
+                await saveSettings();
                 await sendSettingsUpdate();
                 startVisualizerUpdates();
             } else {
@@ -645,16 +687,18 @@ async function handlePowerToggle() {
                 currentSettings.enabled = false;
                 updateStatus(false);
                 statusText.textContent = 'Off';
+                await saveSettings();
                 showToast('Không thể kích hoạt tab capture: ' + (response?.error || 'Vui lòng thử lại'), 'error');
             }
         });
     } else {
-        chrome.runtime.sendMessage({ type: 'STOP_AUDIO_CAPTURE' }, () => {
+        chrome.runtime.sendMessage({ type: 'STOP_AUDIO_CAPTURE' }, async () => {
             powerToggle.disabled = false;
             currentSettings.enabled = false;
             powerToggle.checked = false;
             updateStatus(false);
             stopVisualizerUpdates();
+            await saveSettings();
         });
     }
 }
@@ -825,7 +869,28 @@ async function deleteUserPreset(key) {
 async function applySiteSettings() {
     if (!currentDomain || !siteManager.autoApply) return;
     const siteSettings = siteManager.getForSite(currentDomain);
-    if (siteSettings) applySettings(siteSettings);
+    if (siteSettings) {
+        applySettings(siteSettings);
+    }
+    updateSiteProfileUI();
+}
+
+function updateSiteProfileUI() {
+    if (!siteProfileBtn || !currentDomain) return;
+    const hasCustom = siteManager.hasSiteSettings(currentDomain);
+    if (hasCustom) {
+        siteProfileBtn.classList.add('active');
+        if (siteProfileIcon) siteProfileIcon.textContent = '⭐';
+        if (siteProfileLabel) siteProfileLabel.textContent = `Riêng: ${currentDomain}`;
+        siteProfileBtn.title = `Đang áp dụng cấu hình riêng cho ${currentDomain}. Click để cập nhật lại.`;
+        if (siteProfileDelBtn) siteProfileDelBtn.style.display = 'inline-flex';
+    } else {
+        siteProfileBtn.classList.remove('active');
+        if (siteProfileIcon) siteProfileIcon.textContent = '🌐';
+        if (siteProfileLabel) siteProfileLabel.textContent = 'Chung (Mặc định)';
+        siteProfileBtn.title = `Click để tạo cấu hình âm thanh riêng cho ${currentDomain}`;
+        if (siteProfileDelBtn) siteProfileDelBtn.style.display = 'none';
+    }
 }
 
 function applySettings(settings) {
@@ -996,17 +1061,20 @@ async function handleImport(event) {
 // ===================== STORAGE =====================
 async function loadSettings() {
     return new Promise((resolve) => {
-        chrome.storage.local.get(['settings'], (result) => {
+        chrome.storage.local.get(['settings', 'masterEnabled'], (result) => {
+            const masterEnabled = result.masterEnabled ?? result.settings?.enabled ?? false;
             if (result.settings) {
                 currentSettings = {
                     ...currentSettings,
                     ...result.settings,
-                    enabled: false, // Never assume enabled on load; checkStatus determines real tab status
+                    enabled: masterEnabled,
                     effects: {
                         ...DEFAULT_EFFECTS,
                         ...(result.settings.effects || {})
                     }
                 };
+            } else {
+                currentSettings.enabled = masterEnabled;
             }
             resolve();
         });
@@ -1015,9 +1083,31 @@ async function loadSettings() {
 
 async function saveSettings() {
     return new Promise((resolve) => {
-        // Persist preferences (volume, EQ, effects, preset), but keep enabled: false in storage
-        const toSave = { ...currentSettings, enabled: false };
-        chrome.storage.local.set({ settings: toSave }, resolve);
+        const settingsToSave = {
+            volume: currentSettings.volume,
+            preset: currentSettings.preset,
+            bands: { ...currentSettings.bands },
+            effects: { ...currentSettings.effects },
+            preamp: currentSettings.preamp || 0,
+            pan: currentSettings.pan || 0,
+            mono: !!currentSettings.mono,
+            range: currentSettings.range || 12,
+            bandParams: currentSettings.bandParams || {},
+            enabled: currentSettings.enabled
+        };
+
+        // If currently on a domain with custom settings saved, sync updates directly to this site's profile
+        if (currentDomain && siteManager.hasSiteSettings(currentDomain)) {
+            siteManager.saveForSite(currentDomain, currentSettings).then(() => {
+                updateSiteProfileUI();
+                generateSitePresetsList();
+            });
+        }
+
+        chrome.storage.local.set({
+            settings: settingsToSave,
+            masterEnabled: currentSettings.enabled
+        }, resolve);
     });
 }
 
@@ -1039,12 +1129,29 @@ async function saveUserPresets() {
 // ===================== STATUS & COMMUNICATION =====================
 async function checkStatus() {
     return new Promise((resolve) => {
-        chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
+        chrome.runtime.sendMessage({ type: 'GET_STATUS' }, async (response) => {
+            const [activeTab] = await new Promise(r => chrome.tabs.query({ active: true, currentWindow: true }, r));
+            const isValidWebTab = activeTab?.url && (activeTab.url.startsWith('http://') || activeTab.url.startsWith('https://'));
+
             if (response?.isActive) {
                 currentSettings.enabled = true;
+            } else if (response?.masterEnabled && isValidWebTab) {
+                // User previously left audio ON: auto-start capture seamlessly for this active tab
+                chrome.runtime.sendMessage({ type: 'START_AUDIO_CAPTURE' }, (startRes) => {
+                    if (startRes && startRes.success) {
+                        currentSettings.enabled = true;
+                        powerToggle.checked = true;
+                        updateStatus(true);
+                        sendSettingsUpdate();
+                        startVisualizerUpdates();
+                    }
+                });
             } else {
                 currentSettings.enabled = false;
             }
+
+            powerToggle.checked = currentSettings.enabled;
+            updateStatus(currentSettings.enabled);
             resolve();
         });
     });

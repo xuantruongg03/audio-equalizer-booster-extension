@@ -3,6 +3,14 @@
 
 const OFFSCREEN_DOCUMENT_PATH = '/offscreen/offscreen.html';
 
+function getDomain(url) {
+    try {
+        return new URL(url).hostname.replace('www.', '');
+    } catch {
+        return null;
+    }
+}
+
 // ===================== STATE =====================
 let creatingOffscreenDocument = null;
 let currentCaptureTabId = null;
@@ -104,20 +112,32 @@ async function startCapture(tabId) {
             tabId: tabId
         });
 
-        // Apply saved settings
+        // Apply saved settings (check site-specific profile first)
         setTimeout(async () => {
-            const result = await chrome.storage.local.get(['settings']);
-            if (result.settings) {
+            try {
+                const tab = await chrome.tabs.get(tabId);
+                const domain = tab?.url ? getDomain(tab.url) : null;
+                const result = await chrome.storage.local.get(['settings', 'siteSettings', 'siteSettingsConfig']);
+                let finalSettings = result.settings || {};
+
+                if (domain && result.siteSettings && result.siteSettings[domain] && result.siteSettingsConfig?.autoApply !== false) {
+                    finalSettings = { ...finalSettings, ...result.siteSettings[domain] };
+                }
+
                 chrome.runtime.sendMessage({
                     type: 'UPDATE_AUDIO_SETTINGS',
                     target: 'offscreen',
                     settings: {
-                        volume: result.settings.volume,
-                        bands: result.settings.bands,
-                        effects: result.settings.effects
+                        volume: finalSettings.volume,
+                        bands: finalSettings.bands,
+                        effects: finalSettings.effects,
+                        preamp: finalSettings.preamp || 0,
+                        pan: finalSettings.pan || 0,
+                        mono: !!finalSettings.mono,
+                        bandParams: finalSettings.bandParams || {}
                     }
                 });
-            }
+            } catch (e) {}
         }, 120);
 
         return { success: true, tabId: tabId };
@@ -166,6 +186,9 @@ async function handleMessage(message, sender, sendResponse) {
                     return;
                 }
 
+                // Persist master ON state
+                await chrome.storage.local.set({ masterEnabled: true });
+
                 // Always perform clean start to avoid getting stuck on reloaded tabs
                 const result = await startCapture(tab.id);
                 sendResponse(result);
@@ -173,6 +196,7 @@ async function handleMessage(message, sender, sendResponse) {
             }
 
             case 'STOP_AUDIO_CAPTURE': {
+                await chrome.storage.local.set({ masterEnabled: false });
                 const result = await stopCapture();
                 sendResponse(result);
                 break;
@@ -229,6 +253,7 @@ async function handleMessage(message, sender, sendResponse) {
             case 'GET_STATUS': {
                 const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
                 const hasDoc = await hasOffscreenDocument();
+                const { masterEnabled } = await chrome.storage.local.get(['masterEnabled']);
                 const isActuallyActive = Boolean(
                     hasDoc &&
                     isCapturing &&
@@ -245,6 +270,7 @@ async function handleMessage(message, sender, sendResponse) {
 
                 sendResponse({
                     isActive: isActuallyActive,
+                    masterEnabled: !!masterEnabled,
                     tabId: currentCaptureTabId,
                     activeTabId: activeTab ? activeTab.id : null
                 });
@@ -278,7 +304,40 @@ async function handleMessage(message, sender, sendResponse) {
 // ===================== TAB EVENTS =====================
 
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
-    // Keep capture running for original tab when user switches tabs
+    try {
+        const { masterEnabled } = await chrome.storage.local.get(['masterEnabled']);
+        if (!masterEnabled) return;
+
+        const tab = await chrome.tabs.get(activeInfo.tabId);
+        if (!tab || !tab.url || (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))) {
+            return;
+        }
+
+        // If capture is not currently active, auto-start on this activated web tab
+        if (!isCapturing) {
+            await startCapture(activeInfo.tabId);
+        } else if (currentCaptureTabId === activeInfo.tabId) {
+            // Tab already captured: re-verify and apply site-specific profile
+            const domain = getDomain(tab.url);
+            const { siteSettings, siteSettingsConfig, settings } = await chrome.storage.local.get(['siteSettings', 'siteSettingsConfig', 'settings']);
+            if (domain && siteSettings && siteSettings[domain] && siteSettingsConfig?.autoApply !== false) {
+                const siteConf = siteSettings[domain];
+                chrome.runtime.sendMessage({
+                    type: 'UPDATE_AUDIO_SETTINGS',
+                    target: 'offscreen',
+                    settings: {
+                        volume: siteConf.volume ?? settings?.volume ?? 100,
+                        bands: siteConf.bands ?? settings?.bands,
+                        effects: siteConf.effects ?? settings?.effects,
+                        preamp: siteConf.preamp ?? settings?.preamp ?? 0,
+                        pan: siteConf.pan ?? settings?.pan ?? 0,
+                        mono: !!siteConf.mono,
+                        bandParams: siteConf.bandParams || {}
+                    }
+                });
+            }
+        }
+    } catch (e) {}
 });
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
@@ -289,10 +348,18 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-    // If the captured tab reloads or navigates to a new URL, cleanly stop capture immediately
+    // If the captured tab reloads or navigates, stop current capture session
     if (tabId === currentCaptureTabId && (changeInfo.status === 'loading' || changeInfo.url)) {
         console.log('[Audio EQ Pro v3.0] Captured tab reloaded/navigated, stopping capture cleanly');
         await stopCapture();
+    } else if (changeInfo.status === 'complete' && tab && tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
+        // Auto-resume capture on completed reload if user left audio ON
+        const { masterEnabled } = await chrome.storage.local.get(['masterEnabled']);
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (masterEnabled && activeTab && activeTab.id === tabId && !isCapturing) {
+            console.log('[Audio EQ Pro v3.0] Auto-resuming capture for completed tab reload:', tabId);
+            await startCapture(tabId);
+        }
     }
 });
 

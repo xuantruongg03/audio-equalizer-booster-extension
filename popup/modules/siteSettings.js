@@ -100,6 +100,12 @@ export class SiteSettingsManager {
             volume: settings.volume,
             bands: { ...settings.bands },
             effects: settings.effects ? { ...settings.effects } : undefined,
+            preamp: settings.preamp !== undefined ? settings.preamp : 0,
+            pan: settings.pan !== undefined ? settings.pan : 0,
+            mono: !!settings.mono,
+            range: settings.range || 12,
+            bandParams: settings.bandParams ? { ...settings.bandParams } : {},
+            enabled: settings.enabled !== undefined ? settings.enabled : true,
             savedAt: Date.now()
         };
 
