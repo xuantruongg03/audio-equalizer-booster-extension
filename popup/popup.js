@@ -1,27 +1,17 @@
 // Popup UI Controller v3.0 Pro
 // Glassmorphism UI, Studio Reverb, Bass Enhancer, A/B Compare, Undo/Redo, Realtime Visualizer & Keyboard Shortcuts
 
+import { STORAGE_KEYS, DEFAULT_SETTINGS, DEFAULT_EFFECTS, AUDIO_CONFIG } from '../constant.js';
 import { EQ_BANDS, PRESETS, getFlatBands, clonePresetBands } from './modules/presets.js';
 import { createKnob, updateKnobValue } from './modules/knob.js';
-import { DEFAULT_EFFECTS, createEffectsPanel } from './modules/effects.js';
+import { createEffectsPanel } from './modules/effects.js';
 import { createVisualizer } from './modules/visualizer.js';
 import { SiteSettingsManager, getDomain, createSavedSitesList } from './modules/siteSettings.js';
 import { createDspGraph } from './modules/dspGraph.js';
 import { createDspStrip } from './modules/dspStrip.js';
 
 // ===================== STATE =====================
-let currentSettings = {
-    enabled: false,
-    volume: 100,
-    preset: 'flat',
-    bands: getFlatBands(),
-    effects: { ...DEFAULT_EFFECTS },
-    preamp: 0,
-    pan: 0,
-    mono: false,
-    range: 12,
-    bandParams: {}
-};
+let currentSettings = { ...DEFAULT_SETTINGS, bands: getFlatBands() };
 
 let userPresets = {};
 let siteManager = new SiteSettingsManager();
@@ -30,13 +20,13 @@ let currentTabId = null;
 
 // Pro Features State
 let isMuted = false;
-let preMuteVolume = 100;
+let preMuteVolume = AUDIO_CONFIG.DEFAULT_VOLUME;
 let abCompareActive = false;
 let viewMode = 'knobs';
 let selectedDspBand = '1k';
 const undoStack = [];
 const redoStack = [];
-const MAX_UNDO_DEPTH = 30;
+const MAX_UNDO_DEPTH = AUDIO_CONFIG.MAX_UNDO_DEPTH;
 
 // ===================== DOM ELEMENTS =====================
 let powerToggle, statusIndicator, statusText;
@@ -1061,16 +1051,16 @@ async function handleImport(event) {
 // ===================== STORAGE =====================
 async function loadSettings() {
     return new Promise((resolve) => {
-        chrome.storage.local.get(['settings', 'masterEnabled'], (result) => {
-            const masterEnabled = result.masterEnabled ?? result.settings?.enabled ?? false;
-            if (result.settings) {
+        chrome.storage.local.get([STORAGE_KEYS.SETTINGS, STORAGE_KEYS.MASTER_ENABLED], (result) => {
+            const masterEnabled = result[STORAGE_KEYS.MASTER_ENABLED] ?? result[STORAGE_KEYS.SETTINGS]?.enabled ?? false;
+            if (result[STORAGE_KEYS.SETTINGS]) {
                 currentSettings = {
                     ...currentSettings,
-                    ...result.settings,
+                    ...result[STORAGE_KEYS.SETTINGS],
                     enabled: masterEnabled,
                     effects: {
                         ...DEFAULT_EFFECTS,
-                        ...(result.settings.effects || {})
+                        ...(result[STORAGE_KEYS.SETTINGS].effects || {})
                     }
                 };
             } else {
@@ -1091,7 +1081,7 @@ async function saveSettings() {
             preamp: currentSettings.preamp || 0,
             pan: currentSettings.pan || 0,
             mono: !!currentSettings.mono,
-            range: currentSettings.range || 12,
+            range: currentSettings.range || AUDIO_CONFIG.DEFAULT_RANGE_DB,
             bandParams: currentSettings.bandParams || {},
             enabled: currentSettings.enabled
         };
@@ -1105,16 +1095,16 @@ async function saveSettings() {
         }
 
         chrome.storage.local.set({
-            settings: settingsToSave,
-            masterEnabled: currentSettings.enabled
+            [STORAGE_KEYS.SETTINGS]: settingsToSave,
+            [STORAGE_KEYS.MASTER_ENABLED]: currentSettings.enabled
         }, resolve);
     });
 }
 
 async function loadUserPresets() {
     return new Promise((resolve) => {
-        chrome.storage.local.get(['userPresets'], (result) => {
-            if (result.userPresets) userPresets = result.userPresets;
+        chrome.storage.local.get([STORAGE_KEYS.USER_PRESETS], (result) => {
+            if (result[STORAGE_KEYS.USER_PRESETS]) userPresets = result[STORAGE_KEYS.USER_PRESETS];
             resolve();
         });
     });
@@ -1122,7 +1112,7 @@ async function loadUserPresets() {
 
 async function saveUserPresets() {
     return new Promise((resolve) => {
-        chrome.storage.local.set({ userPresets }, resolve);
+        chrome.storage.local.set({ [STORAGE_KEYS.USER_PRESETS]: userPresets }, resolve);
     });
 }
 

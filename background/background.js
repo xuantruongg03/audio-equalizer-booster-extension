@@ -1,5 +1,6 @@
 // Background Service Worker v3.0 Pro
 // Manages offscreen document, tab tracking, audio lifecycle, and message coordination
+import { STORAGE_KEYS, DEFAULT_SETTINGS } from '../constant.js';
 
 const OFFSCREEN_DOCUMENT_PATH = '/offscreen/offscreen.html';
 
@@ -370,47 +371,9 @@ chrome.runtime.onSuspend.addListener(async () => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-    chrome.storage.local.get(['settings'], (result) => {
-        if (!result.settings) {
-            const defaultSettings = {
-                enabled: false,
-                volume: 100,
-                preset: 'flat',
-                bands: {
-                    '32': 0, '64': 0, '125': 0, '250': 0, '500': 0,
-                    '1k': 0, '2k': 0, '4k': 0, '8k': 0, '16k': 0
-                },
-                effects: {
-                    limiter: {
-                        enabled: true,
-                        threshold: -6,
-                        knee: 20,
-                        ratio: 12,
-                        attack: 0.003,
-                        release: 0.25
-                    },
-                    spatial: {
-                        enabled: false,
-                        mode: 'wide',
-                        width: 50
-                    },
-                    autoPan: {
-                        enabled: false,
-                        speed: 'medium'
-                    },
-                    reverb: {
-                        enabled: false,
-                        type: 'hall',
-                        mix: 25
-                    },
-                    bassEnhancer: {
-                        enabled: false,
-                        amount: 40,
-                        freq: 90
-                    }
-                }
-            };
-            chrome.storage.local.set({ settings: defaultSettings });
+    chrome.storage.local.get([STORAGE_KEYS.SETTINGS], (result) => {
+        if (!result[STORAGE_KEYS.SETTINGS]) {
+            chrome.storage.local.set({ [STORAGE_KEYS.SETTINGS]: DEFAULT_SETTINGS });
         }
     });
 });

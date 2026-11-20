@@ -1,5 +1,6 @@
 // Site Settings Module
 // Per-site/per-tab audio profile management
+import { STORAGE_KEYS, SITE_SETTINGS_DEFAULT_CONFIG } from '../../constant.js';
 
 /**
  * Extract domain from URL
@@ -44,8 +45,8 @@ export const SITE_RECOMMENDATIONS = {
 export class SiteSettingsManager {
     constructor() {
         this.siteSettings = {};
-        this.globalEnabled = true;
-        this.autoApply = true;
+        this.globalEnabled = SITE_SETTINGS_DEFAULT_CONFIG.globalEnabled;
+        this.autoApply = SITE_SETTINGS_DEFAULT_CONFIG.autoApply;
     }
 
     /**
@@ -53,13 +54,13 @@ export class SiteSettingsManager {
      */
     async load() {
         return new Promise((resolve) => {
-            chrome.storage.local.get(['siteSettings', 'siteSettingsConfig'], (result) => {
-                if (result.siteSettings) {
-                    this.siteSettings = result.siteSettings;
+            chrome.storage.local.get([STORAGE_KEYS.SITE_SETTINGS, STORAGE_KEYS.SITE_SETTINGS_CONFIG], (result) => {
+                if (result[STORAGE_KEYS.SITE_SETTINGS]) {
+                    this.siteSettings = result[STORAGE_KEYS.SITE_SETTINGS];
                 }
-                if (result.siteSettingsConfig) {
-                    this.globalEnabled = result.siteSettingsConfig.globalEnabled ?? true;
-                    this.autoApply = result.siteSettingsConfig.autoApply ?? true;
+                if (result[STORAGE_KEYS.SITE_SETTINGS_CONFIG]) {
+                    this.globalEnabled = result[STORAGE_KEYS.SITE_SETTINGS_CONFIG].globalEnabled ?? SITE_SETTINGS_DEFAULT_CONFIG.globalEnabled;
+                    this.autoApply = result[STORAGE_KEYS.SITE_SETTINGS_CONFIG].autoApply ?? SITE_SETTINGS_DEFAULT_CONFIG.autoApply;
                 }
                 resolve();
             });
@@ -72,8 +73,8 @@ export class SiteSettingsManager {
     async save() {
         return new Promise((resolve) => {
             chrome.storage.local.set({
-                siteSettings: this.siteSettings,
-                siteSettingsConfig: {
+                [STORAGE_KEYS.SITE_SETTINGS]: this.siteSettings,
+                [STORAGE_KEYS.SITE_SETTINGS_CONFIG]: {
                     globalEnabled: this.globalEnabled,
                     autoApply: this.autoApply
                 }
