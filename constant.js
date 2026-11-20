@@ -104,23 +104,23 @@ export const AI_GENRE_PROFILES = {
         id: 'drill',
         name: 'Drill & 808 Trap',
         icon: '💣',
-        desc: 'Sub-bass 808 sâu thẳm, dải treble hi-hat sắc nhọn, dìm lower-mid chống đục',
-        bands: { '32': 6, '64': 5, '125': 2, '250': -2, '500': 0, '1k': 1, '2k': 2, '4k': 3, '8k': 4, '16k': 4 },
+        desc: 'Sub-bass 808 siêu sâu (+9dB), dải treble hi-hat sắc bén (+7dB), gọt sạch dải low-mid chống đục',
+        bands: { '32': 9, '64': 8, '125': 3, '250': -3, '500': -1, '1k': 1, '2k': 3, '4k': 4, '8k': 6, '16k': 7 },
         effects: {
             limiter: { enabled: true, threshold: -4 },
             spatial: { enabled: false },
-            bassEnhancer: { enabled: false }
+            bassEnhancer: { enabled: true, amount: 40, freq: 65 }
         }
     },
     'edm_remix': {
         id: 'edm_remix',
         name: 'EDM & Vinahouse Remix',
         icon: '🎛️',
-        desc: 'Kick nảy dứt khoát, âm trường chữ V mở rộng, synth bay bổng',
-        bands: { '32': 5, '64': 6, '125': 4, '250': 0, '500': -2, '1k': 0, '2k': 2, '4k': 4, '8k': 5, '16k': 5 },
+        desc: 'Kick nảy tức thì (+9dB), V-shape scoop mở rộng âm trường, treble sáng bừng (+8dB)',
+        bands: { '32': 7, '64': 9, '125': 6, '250': 0, '500': -4, '1k': -1, '2k': 3, '4k': 6, '8k': 8, '16k': 8 },
         effects: {
-            spatial: { enabled: true, mode: 'wide', width: 60 },
-            bassEnhancer: { enabled: true, amount: 35, freq: 90 },
+            spatial: { enabled: true, mode: 'wide', width: 65 },
+            bassEnhancer: { enabled: true, amount: 45, freq: 85 },
             limiter: { enabled: true, threshold: -5 }
         }
     },
@@ -128,33 +128,34 @@ export const AI_GENRE_PROFILES = {
         id: 'bass_boost',
         name: 'Super Bass Boosted',
         icon: '🔊',
-        desc: 'Tăng cường tối đa dải trầm, tổng hợp sóng hài sub-harmonic rung màng loa',
-        bands: { '32': 9, '64': 8, '125': 5, '250': 2, '500': 0, '1k': 0, '2k': 1, '4k': 2, '8k': 2, '16k': 2 },
+        desc: 'Tăng cường cực đại dải trầm (+12dB), rung chuyển màng loa, dày dặn và uy lực',
+        bands: { '32': 12, '64': 10, '125': 7, '250': 3, '500': 0, '1k': 0, '2k': 1, '4k': 2, '8k': 3, '16k': 3 },
         effects: {
-            bassEnhancer: { enabled: true, amount: 55, freq: 80 },
-            limiter: { enabled: true, threshold: -5 }
+            bassEnhancer: { enabled: true, amount: 65, freq: 75 },
+            limiter: { enabled: true, threshold: -6 }
         }
     },
     'kpop_vpop': {
         id: 'kpop_vpop',
         name: 'K-Pop & V-Pop Vocal',
         icon: '🎤',
-        desc: 'Tập trung làm nổi bật giọng ca sĩ (Presence), bass nảy gọn gàng, âm sắc trong trẻo',
-        bands: { '32': 2, '64': 3, '125': 2, '250': 0, '500': 1, '1k': 3, '2k': 4, '4k': 4, '8k': 3, '16k': 2 },
+        desc: 'Nâng giọng ca sĩ rõ nét (+7dB Presence), bass đập dứt khoát (+5dB), âm sắc trong suốt',
+        bands: { '32': 3, '64': 5, '125': 3, '250': -2, '500': 1, '1k': 5, '2k': 7, '4k': 6, '8k': 5, '16k': 4 },
         effects: {
-            reverb: { enabled: true, type: 'room', mix: 12 },
+            reverb: { enabled: true, type: 'room', mix: 10 },
             spatial: { enabled: false },
-            bassEnhancer: { enabled: false }
+            bassEnhancer: { enabled: false },
+            limiter: { enabled: true, threshold: -3 }
         }
     },
     'acoustic_ballad': {
         id: 'acoustic_ballad',
         name: 'Acoustic & Ballad Chill',
         icon: '🎸',
-        desc: 'Âm thanh mộc mạc, dải trung trầm ấm áp, không gian phòng hòa nhạc sâu lắng',
-        bands: { '32': 0, '64': 2, '125': 3, '250': 3, '500': 2, '1k': 2, '2k': 3, '4k': 2, '8k': 1, '16k': 1 },
+        desc: 'Mộc mạc ấm áp (+5dB dải mid-trầm), hòa âm phòng hòa nhạc mượt mà, thư thái',
+        bands: { '32': -2, '64': 2, '125': 5, '250': 5, '500': 4, '1k': 3, '2k': 4, '4k': 3, '8k': 2, '16k': 1 },
         effects: {
-            reverb: { enabled: true, type: 'hall', mix: 25 },
+            reverb: { enabled: true, type: 'hall', mix: 20 },
             spatial: { enabled: false },
             bassEnhancer: { enabled: false }
         }
@@ -163,8 +164,8 @@ export const AI_GENRE_PROFILES = {
         id: 'rock_metal',
         name: 'Rock & Heavy Metal',
         icon: '🤘',
-        desc: 'Tái tạo dàn guitar điện distortion và trống kích bùng nổ',
-        bands: { '32': 5, '64': 5, '125': 3, '250': 1, '500': -2, '1k': 2, '2k': 4, '4k': 5, '8k': 6, '16k': 5 },
+        desc: 'Guitar điện distortion uy lực (+7dB), snare đanh chắc, kick xuyên phá',
+        bands: { '32': 6, '64': 7, '125': 4, '250': 1, '500': -3, '1k': 3, '2k': 6, '4k': 7, '8k': 8, '16k': 7 },
         effects: {
             limiter: { enabled: true, threshold: -4 }
         }
@@ -173,8 +174,8 @@ export const AI_GENRE_PROFILES = {
         id: 'cinema_podcast',
         name: 'Cinema & Podcast',
         icon: '🎬',
-        desc: 'Tối ưu độ rõ lời thoại (Dialogue Clarity) và hiệu ứng môi trường sống động',
-        bands: { '32': -3, '64': -2, '125': 0, '250': 2, '500': 4, '1k': 6, '2k': 6, '4k': 4, '8k': 2, '16k': 0 },
+        desc: 'Tăng cường hội thoại siêu rõ nét (+8dB Dialogue), lọc sạch tạp âm ù nền',
+        bands: { '32': -6, '64': -4, '125': 0, '250': 2, '500': 6, '1k': 8, '2k': 8, '4k': 6, '8k': 3, '16k': 0 },
         effects: {
             reverb: { enabled: false },
             limiter: { enabled: true, threshold: -6 }
@@ -186,13 +187,13 @@ export const AI_GENRE_PROFILES = {
  * Metadata Keyword Dictionary for High-Speed Prior Estimation
  */
 export const AI_GENRE_KEYWORDS = {
-    drill: ['drill', 'uk drill', 'ny drill', 'chiraq', 'central cee', 'pop smoke', '808 drill'],
-    edm_remix: ['edm', 'remix', 'vinahouse', 'vina house', 'club mix', 'dj', 'electro', 'festival', 'extended mix', 'dance music', 'bounce', 'house music'],
-    bass_boost: ['bass boosted', 'bass boost', 'extreme bass', 'mega bass', 'sub bass test', 'deep bass', 'bass test'],
-    kpop_vpop: ['kpop', 'k-pop', 'vpop', 'v-pop', 'blackpink', 'bts', 'newjeans', 'aespa', 'ive', 'sơn tùng', 'soobin', 'hieuthuhai', 'jack', 'mono', 'chúng ta của', 'official mv', 'mv', 'nhạc trẻ'],
-    acoustic_ballad: ['acoustic', 'ballad', 'lofi', 'lo-fi', 'chillhop', 'piano cover', 'guitar cover', 'unplugged', 'nhạc nhẹ', 'thư giãn', 'ngủ ngon', 'sleep music'],
-    rock_metal: ['rock', 'metal', 'heavy metal', 'hard rock', 'guitar solo', 'punk', 'linkin park', 'metallica', 'slipknot'],
-    cinema_podcast: ['podcast', 'talkshow', 'talk show', 'audiobook', 'sách nói', 'phỏng vấn', 'review phim', 'trailer', 'documentary']
+    drill: ['drill', 'uk drill', 'ny drill', 'chiraq', 'central cee', 'pop smoke', '808 drill', 'fivio', 'digga d', 'russ millions'],
+    edm_remix: ['edm', 'remix', 'vinahouse', 'vina house', 'club mix', 'dj', 'electro', 'festival', 'extended mix', 'dance music', 'bounce', 'house music', 'nonstop', 'non stop', 'lk nhac tre', 'mashup', 'bass boosted', 'trap', 'dubstep', 'hardstyle', 'rave', 'electronic', 'alan walker', 'marshmello', 'martin garrix', 'avicii', 'tiesto', 'skrillex', 'dj snake', 'chainsmokers', 'calvin harris', 'illenium', 'dai meo', 'dj minh tri'],
+    bass_boost: ['bass boosted', 'bass boost', 'extreme bass', 'mega bass', 'sub bass test', 'deep bass', 'bass test', 'sieu tram', 'bass cuc manh', 'tang bass', 'cuc cang', 'dap rung'],
+    kpop_vpop: ['kpop', 'k-pop', 'vpop', 'v-pop', 'blackpink', 'bts', 'newjeans', 'aespa', 'ive', 'son tung', 'sơn tùng', 'soobin', 'hieuthuhai', 'jack', 'mono', 'chung ta cua', 'chúng ta của', 'official mv', 'mv', 'nhac tre', 'nhạc trẻ', 'twice', 'stray kids', 'itzy', 'le sserafim', 'seventeen', 'gidle', 'g-idle', 'exo', 'red velvet', 'iu', 'taeyeon', 'jungkook', 'jimin', 'lisa', 'jennie', 'rose', 'jisoo', 'vu', 'vũ', 'hoang dung', 'hoàng dũng', 'den vau', 'đen vâu', 'tlinh', 'mck', 'wren evans', 'phuong ly', 'phương ly', 'bich phuong', 'bích phương', 'min', 'erik', 'duc phuc', 'đức phúc', 'hoa minzy', 'hòa minzy', 'truc nhan', 'trúc nhân', 'van mai huong', 'văn mai hương', 'bui anh tuan', 'bùi anh tuấn', 'ha anh tuan', 'hà anh tuấn', 'phan manh quynh', 'phan mạnh quỳnh', 'karik', 'justatee', 'rhymastic', 'low g', 'tage', '24k.right', 'lyric', 'lyrics', 'audio', 'music video'],
+    acoustic_ballad: ['acoustic', 'ballad', 'lofi', 'lo-fi', 'chillhop', 'piano cover', 'guitar cover', 'unplugged', 'nhac nhe', 'nhạc nhẹ', 'thu gian', 'thư giãn', 'ngu ngon', 'ngủ ngon', 'sleep music', 'chill', 'cafe', 'buon', 'buồn', 'tam trang', 'tâm trạng', 'guitar', 'piano', 'sad song'],
+    rock_metal: ['rock', 'metal', 'heavy metal', 'hard rock', 'guitar solo', 'punk', 'linkin park', 'metallica', 'slipknot', 'alt rock', 'indie rock', 'band', 'greenday', 'green day', 'guns n roses', 'acdc', 'ac/dc'],
+    cinema_podcast: ['podcast', 'talkshow', 'talk show', 'audiobook', 'sach noi', 'sách nói', 'phong van', 'phỏng vấn', 'review phim', 'trailer', 'documentary', 'tin tuc', 'tin tức', 'thoi su', 'thời sự', 'vlog', 'reaction', 'chia se', 'chia sẻ', 'phim', 'movie']
 };
 
 // Also attach to globalThis for scripts not using ES modules

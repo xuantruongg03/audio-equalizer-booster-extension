@@ -154,9 +154,9 @@ async function initAudioContext(streamId, tabId, title = '') {
         limiterNode.attack.value = 0.001;
         limiterNode.release.value = 0.1;
 
-        // Analyser for visualizer & AI Auto-Genre classification (FFT size 512 for rich spectral resolution)
+        // Analyser for visualizer & AI Auto-Genre classification (FFT size 2048 for high-resolution sub-bass & acoustic analysis)
         analyserNode = audioContext.createAnalyser();
-        analyserNode.fftSize = 512;
+        analyserNode.fftSize = 2048;
         analyserNode.smoothingTimeConstant = 0.8;
 
         // Initialize AI Hybrid Auto-Genre Classifier
@@ -818,7 +818,7 @@ function applyEffects(effects) {
 function handleAiGenreDetected({ genre, profile, confidence, metaMatched }) {
     if (!audioContext || audioContext.state === 'closed') return;
     const ct = audioContext.currentTime;
-    const ramp = 0.50; // Smooth 500ms musical crossfade transition
+    const ramp = 0.35; // Responsive 350ms smooth musical crossfade transition
 
     // 1. Smoothly ramp 10 parametric EQ filters to target acoustic curve
     if (profile && profile.bands) {
@@ -837,7 +837,22 @@ function handleAiGenreDetected({ genre, profile, confidence, metaMatched }) {
         applyEffects(profile.effects);
     }
 
-    // 3. Broadcast real-time event to open popup & background
+    // 3. Persist current detected genre AND updated bands in storage so popup & session stay in sync
+    try {
+        chrome.storage.local.get([STORAGE_KEYS.SETTINGS], (res) => {
+            const current = res.settings || {};
+            const updated = {
+                ...current,
+                bands: { ...(profile.bands || {}) }
+            };
+            chrome.storage.local.set({
+                [STORAGE_KEYS.AI_CURRENT_GENRE]: genre,
+                [STORAGE_KEYS.SETTINGS]: updated
+            });
+        });
+    } catch (e) {}
+
+    // 4. Broadcast real-time event to open popup & background
     try {
         chrome.runtime.sendMessage({
             type: 'AI_GENRE_DETECTED',
@@ -846,11 +861,6 @@ function handleAiGenreDetected({ genre, profile, confidence, metaMatched }) {
             confidence,
             metaMatched
         }).catch(() => {});
-    } catch (e) {}
-
-    // 4. Persist current detected genre in storage
-    try {
-        chrome.storage.local.set({ [STORAGE_KEYS.AI_CURRENT_GENRE]: genre });
     } catch (e) {}
 }
 
@@ -919,11 +929,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'GET_AI_STATUS': {
+            const currentG = autoClassifier ? autoClassifier.currentGenre : null;
+            const profile = currentG ? AI_GENRE_PROFILES[currentG] : null;
             sendResponse({
                 success: true,
                 enabled: autoClassifier ? autoClassifier.enabled : false,
-                currentGenre: autoClassifier ? autoClassifier.currentGenre : null,
-                profile: (autoClassifier && autoClassifier.currentGenre) ? AI_GENRE_PROFILES[autoClassifier.currentGenre] : null
+                currentGenre: currentG,
+                profile: profile,
+                bands: profile ? profile.bands : null
             });
             break;
         }

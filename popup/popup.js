@@ -80,12 +80,12 @@ async function init() {
         updateAiAutoEqBar(aiEnabled);
         if (aiEnabled && res[STORAGE_KEYS.AI_CURRENT_GENRE] && AI_GENRE_PROFILES[res[STORAGE_KEYS.AI_CURRENT_GENRE]]) {
             const p = AI_GENRE_PROFILES[res[STORAGE_KEYS.AI_CURRENT_GENRE]];
-            if (aiGenreName) aiGenreName.textContent = `${p.icon || '🎵'} ${p.name} (Tự động)`;
+            applyAiGenreToUI(p, 0.95, true);
         }
         if (aiEnabled) {
             chrome.runtime.sendMessage({ type: 'GET_AI_STATUS', target: 'offscreen' }, (statusRes) => {
                 if (statusRes && statusRes.profile) {
-                    updateAiGenreBadge(statusRes.profile, 0.9, true);
+                    applyAiGenreToUI(statusRes.profile, 0.95, true);
                 }
             });
         }
@@ -586,7 +586,12 @@ function setupEventListeners() {
                 enabled
             });
             updateAiAutoEqBar(enabled);
-            showToast(enabled ? '✨ Đã bật AI Auto-EQ tự động nhận diện dòng nhạc' : 'Đã tắt AI Auto-EQ', 'info');
+            if (enabled) {
+                getCurrentTabInfo();
+                showToast('✨ Đã bật AI Auto-EQ tự động nhận diện dòng nhạc', 'info');
+            } else {
+                showToast('Đã tắt AI Auto-EQ', 'info');
+            }
         });
     }
 
@@ -1037,14 +1042,24 @@ function handleBackgroundMessage(message) {
             break;
         case 'AI_GENRE_DETECTED':
             if (message.profile) {
-                updateAiGenreBadge(message.profile, message.confidence, message.metaMatched);
-                if (message.profile.bands) {
-                    currentSettings.bands = { ...message.profile.bands };
-                    updateEQKnobs();
-                    dspGraph?.updateBands(currentSettings.bands);
-                }
+                applyAiGenreToUI(message.profile, message.confidence, message.metaMatched);
+                showToast(`✨ AI Auto-EQ: Đã chuyển sang dòng nhạc ${message.profile.name}!`, 'success');
             }
             break;
+    }
+}
+
+function applyAiGenreToUI(profile, confidence = 0.95, metaMatched = true) {
+    if (!profile) return;
+    updateAiGenreBadge(profile, confidence, metaMatched);
+    if (profile.bands) {
+        currentSettings.bands = { ...profile.bands };
+        updateEQKnobs();
+        dspGraph?.updateBands(currentSettings.bands);
+    }
+    if (profile.effects && effectsPanel) {
+        currentSettings.effects = { ...currentSettings.effects, ...profile.effects };
+        effectsPanel.setEffects(currentSettings.effects);
     }
 }
 
@@ -1052,7 +1067,7 @@ function updateAiAutoEqBar(enabled) {
     if (!aiAutoEqBar || !aiGenreName) return;
     if (enabled) {
         aiAutoEqBar.classList.add('active');
-        if (aiGenreName.textContent.includes('Đã tắt')) {
+        if (aiGenreName.textContent.includes('Đã tắt') || aiGenreName.textContent.includes('Đang chờ')) {
             aiGenreName.textContent = 'AI Auto-EQ: Đang nghe & phân tích...';
         }
     } else {

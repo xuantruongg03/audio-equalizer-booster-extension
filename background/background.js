@@ -1,6 +1,6 @@
 // Background Service Worker v3.0 Pro
 // Manages offscreen document, tab tracking, audio lifecycle, and message coordination
-import { STORAGE_KEYS, DEFAULT_SETTINGS } from '../constant.js';
+import { STORAGE_KEYS, DEFAULT_SETTINGS, AI_GENRE_PROFILES } from '../constant.js';
 
 const OFFSCREEN_DOCUMENT_PATH = '/offscreen/offscreen.html';
 
@@ -137,10 +137,18 @@ async function startCapture(tabId) {
             try {
                 const t = await chrome.tabs.get(tabId).catch(() => null);
                 const domain = t?.url ? getDomain(t.url) : null;
-                const result = await chrome.storage.local.get(['settings', 'siteSettings', 'siteSettingsConfig']);
+                const result = await chrome.storage.local.get([
+                    'settings', 'siteSettings', 'siteSettingsConfig',
+                    STORAGE_KEYS.AI_AUTO_EQ, STORAGE_KEYS.AI_CURRENT_GENRE
+                ]);
                 let finalSettings = result.settings || {};
 
-                if (domain && result.siteSettings && result.siteSettings[domain] && result.siteSettingsConfig?.autoApply !== false) {
+                // If user has AI Auto-EQ active and a genre was already detected, preserve the AI acoustic curve!
+                const isAiActive = !!result[STORAGE_KEYS.AI_AUTO_EQ];
+                const aiGenre = result[STORAGE_KEYS.AI_CURRENT_GENRE];
+                if (isAiActive && aiGenre && AI_GENRE_PROFILES[aiGenre]) {
+                    finalSettings.bands = { ...AI_GENRE_PROFILES[aiGenre].bands };
+                } else if (domain && result.siteSettings && result.siteSettings[domain] && result.siteSettingsConfig?.autoApply !== false) {
                     finalSettings = { ...finalSettings, ...result.siteSettings[domain] };
                 }
 
@@ -425,7 +433,21 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         // If it's an in-page SPA navigation (URL changed within the same domain, e.g. YouTube next video in playlist)
         if (changeInfo.url) {
             console.log('[Audio EQ Pro v3.0] SPA In-page navigation on same domain:', newDomain, '- maintaining active audio capture stream');
-            // Do NOT stop capture! Stream remains continuously active on YouTube
+            // Re-fetch tab title after DOM title updates and notify offscreen classifier
+            const notifyTitleChange = async () => {
+                try {
+                    const updatedTab = await chrome.tabs.get(tabId).catch(() => null);
+                    if (updatedTab && updatedTab.title) {
+                        chrome.runtime.sendMessage({
+                            type: 'UPDATE_TAB_TITLE',
+                            target: 'offscreen',
+                            title: updatedTab.title
+                        }).catch(() => {});
+                    }
+                } catch (e) {}
+            };
+            setTimeout(notifyTitleChange, 400);
+            setTimeout(notifyTitleChange, 1200);
             return;
         }
 
