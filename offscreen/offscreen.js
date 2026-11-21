@@ -18,6 +18,7 @@ let stereoPannerNode = null;
 let compressorNode = null;
 let limiterNode = null;
 let analyserNode = null;
+let sourceAnalyserNode = null; // Clean pre-EQ analyser for AI genre classification
 let mediaStream = null;
 let currentTabId = null;
 let isInitializing = false;
@@ -154,15 +155,27 @@ async function initAudioContext(streamId, tabId, title = '') {
         limiterNode.attack.value = 0.001;
         limiterNode.release.value = 0.1;
 
-        // Analyser for visualizer & AI Auto-Genre classification (FFT size 2048 for high-resolution sub-bass & acoustic analysis)
+        // Pre-EQ Analyser specifically dedicated to AI Hybrid Auto-Genre classification
+        // (Analyzes clean source audio directly so active EQ filters never cause false detection loops)
+        sourceAnalyserNode = audioContext.createAnalyser();
+        sourceAnalyserNode.fftSize = 2048;
+        sourceAnalyserNode.smoothingTimeConstant = 0.8;
+        sourceNode.connect(sourceAnalyserNode);
+
+        // Analyser for UI Visualizer (Post-EQ so visualizer displays the final mastered audio spectrum)
         analyserNode = audioContext.createAnalyser();
         analyserNode.fftSize = 2048;
         analyserNode.smoothingTimeConstant = 0.8;
 
-        // Initialize AI Hybrid Auto-Genre Classifier
-        autoClassifier = new AutoGenreClassifier(analyserNode, audioContext, (result) => {
+        // Initialize AI Hybrid Auto-Genre Classifier using clean source audio
+        autoClassifier = new AutoGenreClassifier(sourceAnalyserNode, audioContext, (result) => {
             handleAiGenreDetected(result);
         });
+
+        // Set initial track title context if provided
+        if (title && autoClassifier) {
+            autoClassifier.setTabTitle(title);
+        }
 
         // Check if user has AI Auto-EQ enabled
         try {
@@ -171,9 +184,6 @@ async function initAudioContext(streamId, tabId, title = '') {
                     autoClassifier.start();
                 }
             });
-            if (title && autoClassifier) {
-                autoClassifier.setTabTitle(title);
-            }
         } catch (e) {}
 
         // Create Effect modules
@@ -185,15 +195,23 @@ async function initAudioContext(streamId, tabId, title = '') {
         // Build main processing graph
         buildAudioChain();
 
+        if (audioContext && audioContext.state === 'suspended') {
+            audioContext.resume().catch(() => {});
+        }
+
         console.log('[Audio EQ Pro v3.0] Audio engine initialized');
-        chrome.runtime.sendMessage({ type: 'AUDIO_STARTED', tabId: tabId });
+        try {
+            chrome.runtime.sendMessage({ type: 'AUDIO_STARTED', tabId: tabId }).catch(() => {});
+        } catch (e) {}
 
         isInitializing = false;
 
     } catch (error) {
         isInitializing = false;
         console.error('[Audio EQ Pro v3.0] Failed to init audio:', error);
-        chrome.runtime.sendMessage({ type: 'AUDIO_ERROR', error: error.message });
+        try {
+            chrome.runtime.sendMessage({ type: 'AUDIO_ERROR', error: error.message }).catch(() => {});
+        } catch (e) {}
         throw error;
     }
 }
@@ -484,12 +502,22 @@ function buildAudioChain() {
     try { analyserNode?.disconnect(); } catch (e) { }
 
     if (abCompareActive) {
+        // Keep source connected to AI classifier even during A/B bypass
+        if (sourceAnalyserNode) {
+            try { sourceNode.connect(sourceAnalyserNode); } catch (e) {}
+        }
         // Direct Bypass Mode for A/B comparison
         sourceNode.connect(limiterNode);
         limiterNode.connect(analyserNode);
         limiterNode.connect(audioContext.destination);
         console.log('[Audio EQ Pro v3.0] A/B Compare BYPASS active');
         return;
+    }
+
+    // Pre-EQ connection to dedicated AI Hybrid Classifier
+    // (Crucial: keeps clean source audio feeding real-time FFT analysis)
+    if (sourceAnalyserNode) {
+        try { sourceNode.connect(sourceAnalyserNode); } catch (e) {}
     }
 
     // Normal Chain:
@@ -569,7 +597,7 @@ async function stopAudioProcessing(sendMessage = true) {
         }
 
         const allNodes = [
-            sourceNode, preampGainNode, gainNode, compressorNode, limiterNode, analyserNode,
+            sourceNode, preampGainNode, gainNode, compressorNode, limiterNode, analyserNode, sourceAnalyserNode,
             splitterNode, mergerNode, leftDelayNode, rightDelayNode,
             leftGainNode, rightGainNode, crossFeedL, crossFeedR,
             autoPanNode, autoPanLFO, autoPanLFOGain,
@@ -582,6 +610,7 @@ async function stopAudioProcessing(sendMessage = true) {
             if (node) try { node.disconnect(); } catch (e) { }
         });
 
+        sourceAnalyserNode = null;
         eqFilters.forEach(f => { try { f.disconnect(); } catch (e) { } });
         eqFilters = [];
         preampGainNode = stereoPannerNode = null;
@@ -605,7 +634,9 @@ async function stopAudioProcessing(sendMessage = true) {
         currentTabId = null;
 
         if (sendMessage) {
-            chrome.runtime.sendMessage({ type: 'AUDIO_STOPPED', tabId: tabId });
+            try {
+                chrome.runtime.sendMessage({ type: 'AUDIO_STOPPED', tabId: tabId }).catch(() => {});
+            } catch (e) {}
         }
 
     } catch (error) {
@@ -684,9 +715,16 @@ function applySettings(settings) {
 
                 // Target gain (0 if bypassed)
                 const targetGain = params.bypass ? 0 : (settings.bands[key] ?? 0);
-                filter.gain.cancelScheduledValues(ct);
-                filter.gain.setValueAtTime(filter.gain.value, ct);
-                filter.gain.linearRampToValueAtTime(targetGain, ct + ramp);
+                try {
+                    if (filter.gain.cancelAndHoldAtTime) {
+                        filter.gain.cancelAndHoldAtTime(ct);
+                    } else {
+                        filter.gain.cancelScheduledValues(ct);
+                    }
+                    filter.gain.setTargetAtTime(targetGain, ct, 0.04);
+                } catch (e) {
+                    filter.gain.value = targetGain;
+                }
             }
         });
     }
@@ -817,17 +855,26 @@ function applyEffects(effects) {
 // ===================== AI HYBRID AUTO-EQ DISPATCHER =====================
 function handleAiGenreDetected({ genre, profile, confidence, metaMatched }) {
     if (!audioContext || audioContext.state === 'closed') return;
+    if (audioContext.state === 'suspended') {
+        audioContext.resume().catch(() => {});
+    }
     const ct = audioContext.currentTime;
-    const ramp = 0.35; // Responsive 350ms smooth musical crossfade transition
 
     // 1. Smoothly ramp 10 parametric EQ filters to target acoustic curve
     if (profile && profile.bands) {
         EQ_BAND_KEYS.forEach((key, index) => {
             if (eqFilters[index]) {
                 const targetGain = profile.bands[key] ?? 0;
-                eqFilters[index].gain.cancelScheduledValues(ct);
-                eqFilters[index].gain.setValueAtTime(eqFilters[index].gain.value, ct);
-                eqFilters[index].gain.linearRampToValueAtTime(targetGain, ct + ramp);
+                try {
+                    if (eqFilters[index].gain.cancelAndHoldAtTime) {
+                        eqFilters[index].gain.cancelAndHoldAtTime(ct);
+                    } else {
+                        eqFilters[index].gain.cancelScheduledValues(ct);
+                    }
+                    eqFilters[index].gain.setTargetAtTime(targetGain, ct, 0.08);
+                } catch (e) {
+                    eqFilters[index].gain.value = targetGain;
+                }
             }
         });
     }
@@ -840,9 +887,10 @@ function handleAiGenreDetected({ genre, profile, confidence, metaMatched }) {
     // 3. Persist current detected genre AND updated bands in storage so popup & session stay in sync
     try {
         chrome.storage.local.get([STORAGE_KEYS.SETTINGS], (res) => {
-            const current = res.settings || {};
+            const current = res[STORAGE_KEYS.SETTINGS] || res.settings || {};
             const updated = {
                 ...current,
+                preset: 'ai-active',
                 bands: { ...(profile.bands || {}) }
             };
             chrome.storage.local.set({
@@ -871,14 +919,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message.type) {
         case 'INIT_AUDIO_CONTEXT':
             initAudioContext(message.streamId, message.tabId, message.title || '')
-                .then(() => sendResponse({ success: true }))
-                .catch((error) => sendResponse({ success: false, error: error.message }));
+                .then(() => {
+                    try { sendResponse({ success: true }); } catch (e) {}
+                })
+                .catch((error) => {
+                    try { sendResponse({ success: false, error: error.message }); } catch (e) {}
+                });
             return true;
 
         case 'STOP_AUDIO_PROCESSING':
             stopAudioProcessing()
-                .then(() => sendResponse({ success: true }))
-                .catch((error) => sendResponse({ success: false, error: error.message }));
+                .then(() => {
+                    try { sendResponse({ success: true }); } catch (e) {}
+                })
+                .catch((error) => {
+                    try { sendResponse({ success: false, error: error.message }); } catch (e) {}
+                });
             return true;
 
         case 'UPDATE_AUDIO_SETTINGS':
@@ -901,7 +957,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (analyserNode && audioContext && audioContext.state === 'running') {
                 const dataArray = new Uint8Array(analyserNode.frequencyBinCount);
                 analyserNode.getByteFrequencyData(dataArray);
-                sendResponse({ success: true, data: Array.from(dataArray) });
+                const timeData = new Uint8Array(analyserNode.frequencyBinCount);
+                analyserNode.getByteTimeDomainData(timeData);
+                sendResponse({
+                    success: true,
+                    data: Array.from(dataArray),
+                    freqData: Array.from(dataArray),
+                    timeData: Array.from(timeData)
+                });
             } else {
                 sendResponse({ success: false, error: 'No analyser or context not running' });
             }
@@ -913,8 +976,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 chrome.storage.local.set({ [STORAGE_KEYS.AI_AUTO_EQ]: enabled });
             } catch (e) {}
             if (autoClassifier) {
-                if (enabled) autoClassifier.start();
-                else autoClassifier.stop();
+                if (message.title) {
+                    autoClassifier.setTabTitle(message.title);
+                }
+                if (enabled) {
+                    autoClassifier.start();
+                } else {
+                    autoClassifier.stop();
+                }
             }
             sendResponse({ success: true, enabled });
             break;
@@ -929,6 +998,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'GET_AI_STATUS': {
+            if (autoClassifier && autoClassifier.enabled) {
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume().catch(() => {});
+                }
+                if (message.title && message.title !== autoClassifier.currentTabTitle) {
+                    autoClassifier.setTabTitle(message.title);
+                }
+                if (!autoClassifier.currentGenre) {
+                    autoClassifier.evaluate(true);
+                }
+            }
             const currentG = autoClassifier ? autoClassifier.currentGenre : null;
             const profile = currentG ? AI_GENRE_PROFILES[currentG] : null;
             sendResponse({
@@ -936,7 +1016,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 enabled: autoClassifier ? autoClassifier.enabled : false,
                 currentGenre: currentG,
                 profile: profile,
-                bands: profile ? profile.bands : null
+                bands: profile ? profile.bands : null,
+                metaMatched: autoClassifier ? Boolean(autoClassifier.lastMetaMatched) : false
             });
             break;
         }

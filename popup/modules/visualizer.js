@@ -1,5 +1,5 @@
 // Audio Visualizer Module v3.0 Pro
-// Realtime Spectrum Analyzer, Peak Level Meter, Oscilloscope & Circular visualizer
+// Realtime Logarithmic Spectrum Analyzer, Peak Level Meter, Liquid Oscilloscope & Circular Visualizer
 
 /**
  * Visualizer modes
@@ -13,15 +13,14 @@ export const VISUALIZER_MODES = {
 };
 
 /**
- * Create visualizer canvas with realtime data and peak meter support
+ * Create visualizer canvas with logarithmic auditory scaling and physics-based peak hold
  */
 export function createVisualizer(options = {}) {
     const {
-        width = 376,
-        height = 64,
+        width = 446,
+        height = 52,
         mode = 'bars',
-        barCount = 38,
-        color = '#3b82f6'
+        barCount = 30
     } = options;
 
     const container = document.createElement('div');
@@ -44,15 +43,21 @@ export function createVisualizer(options = {}) {
                 <span>🔇 Đang chờ tín hiệu âm thanh...</span>
             </div>
         </div>
-        <!-- Peak Level Meter -->
+        <!-- Frequency Scale Markers (Matched to 10-Band EQ) -->
+        <div class="visualizer-freq-labels">
+            <span>32Hz</span>
+            <span>64</span>
+            <span>125</span>
+            <span>250</span>
+            <span>500</span>
+            <span>1k</span>
+            <span>2k</span>
+            <span>4k</span>
+            <span>8k</span>
+            <span>16k</span>
+        </div>
+        <!-- Master Peak Level Meter -->
         <div class="peak-meter-wrap" id="peakMeterWrap">
-            <div class="peak-meter-labels">
-                <span>-60dB</span>
-                <span>-24dB</span>
-                <span>-12dB</span>
-                <span>-6dB</span>
-                <span>0dB</span>
-            </div>
             <div class="peak-meter-bar">
                 <div class="peak-level-fill" id="peakLevelFill"></div>
                 <div class="peak-hold-line" id="peakHoldLine"></div>
@@ -67,12 +72,19 @@ export function createVisualizer(options = {}) {
     const peakHold = container.querySelector('#peakHoldLine');
 
     let currentMode = mode;
-    let dataArray = new Uint8Array(128);
+    let dataArray = new Uint8Array(1024);
+    let timeDomainArray = null;
     let hasAudioData = false;
     let silenceCount = 0;
-    const SILENCE_THRESHOLD = 12;
+    const SILENCE_THRESHOLD = 15;
 
-    // Peak meter state
+    // Physics state for bars & peak caps
+    const barHeights = new Float32Array(barCount);
+    const peakHeights = new Float32Array(barCount);
+    const peakHolds = new Uint8Array(barCount);
+    const peakVelocities = new Float32Array(barCount);
+
+    // Master Peak Meter state
     let peakValue = 0;
     let peakHoldValue = 0;
     let peakHoldDecay = 0;
@@ -104,102 +116,205 @@ export function createVisualizer(options = {}) {
     }
 
     function clearCanvas() {
-        ctx.fillStyle = 'rgba(10, 15, 25, 0.95)';
+        ctx.fillStyle = 'rgba(4, 9, 22, 0.95)';
         ctx.fillRect(0, 0, width, height);
     }
 
     function updatePeakMeter(currentMax) {
-        // Smooth peak response
-        peakValue = peakValue * 0.7 + currentMax * 0.3;
+        // Natural logarithmic perceptual compression for the master peak meter
+        const norm = Math.max(0, (currentMax - 20) / 225);
+        const target = Math.min(100, Math.pow(norm, 1.25) * 100);
+        peakValue = peakValue * 0.45 + target * 0.55;
 
         if (peakValue > peakHoldValue) {
             peakHoldValue = peakValue;
             peakHoldDecay = 0;
         } else {
             peakHoldDecay++;
-            if (peakHoldDecay > 15) {
-                peakHoldValue = Math.max(0, peakHoldValue - 2.5);
+            if (peakHoldDecay > 12) {
+                peakHoldValue = Math.max(0, peakHoldValue - 2.2);
             }
         }
 
-        const pct = Math.min(100, (peakValue / 255) * 100);
-        const holdPct = Math.min(100, (peakHoldValue / 255) * 100);
+        const pct = Math.min(100, peakValue);
+        const holdPct = Math.min(100, peakHoldValue);
 
-        if (peakFill) peakFill.style.width = `${pct}%`;
-        if (peakHold) peakHold.style.left = `${holdPct}%`;
+        if (peakFill) peakFill.style.width = `${pct.toFixed(1)}%`;
+        if (peakHold) peakHold.style.left = `${holdPct.toFixed(1)}%`;
     }
 
     function hasSignificantAudio() {
         let sum = 0;
         let maxVal = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-            sum += dataArray[i];
-            if (dataArray[i] > maxVal) maxVal = dataArray[i];
+        const len = dataArray.length;
+        for (let i = 0; i < len; i++) {
+            const v = dataArray[i];
+            sum += v;
+            if (v > maxVal) maxVal = v;
         }
         updatePeakMeter(maxVal);
-        const average = sum / dataArray.length;
-        return average > 2.5;
+        return (sum / len) > 1.8;
     }
 
+    /**
+     * Map bar index logarithmically across human auditory range (28 Hz to 14,500 Hz)
+     * avoiding linear dead zones where web audio encoders have steep rolloff.
+     */
+    function getLogBins(index, totalBars, binCount, sampleRate = 48000) {
+        const minFreq = 28;
+        const maxFreq = 14500;
+        const binWidth = sampleRate / (binCount * 2);
+        const f1 = minFreq * Math.pow(maxFreq / minFreq, index / totalBars);
+        const f2 = minFreq * Math.pow(maxFreq / minFreq, (index + 1) / totalBars);
+        const startBin = Math.max(1, Math.floor(f1 / binWidth));
+        const endBin = Math.max(startBin + 1, Math.min(binCount - 1, Math.ceil(f2 / binWidth)));
+        return { startBin, endBin };
+    }
+
+    // ===================== 1. LOGARITHMIC SPECTRUM BARS =====================
     function drawBars() {
-        ctx.fillStyle = 'rgba(8, 12, 22, 0.35)';
+        ctx.fillStyle = 'rgba(4, 9, 22, 0.55)';
         ctx.fillRect(0, 0, width, height);
 
-        const barWidth = (width / barCount) * 0.76;
-        const gap = (width / barCount) * 0.24;
+        // Faint horizontal reference lines (-12dB, -24dB)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, height * 0.36);
+        ctx.lineTo(width, height * 0.36);
+        ctx.moveTo(0, height * 0.68);
+        ctx.lineTo(width, height * 0.68);
+        ctx.stroke();
+
+        const totalWidth = width;
+        const step = totalWidth / barCount;
+        const barWidth = Math.max(3, step - 3.6);
+        const binCount = dataArray.length;
 
         for (let i = 0; i < barCount; i++) {
-            const dataIndex = Math.floor(i * (dataArray.length / barCount));
-            const value = dataArray[dataIndex] || 0;
-            const barHeight = (value / 255) * (height - 8);
+            const { startBin, endBin } = getLogBins(i, barCount, binCount);
 
-            const x = i * (barWidth + gap);
-            const y = height - barHeight - 2;
+            let sum = 0;
+            let maxInBand = 0;
+            for (let b = startBin; b < endBin && b < binCount; b++) {
+                const val = dataArray[b];
+                sum += val;
+                if (val > maxInBand) maxInBand = val;
+            }
+            const count = Math.max(1, endBin - startBin);
+            const avg = sum / count;
 
-            // Vibrant Zyno gradient: Deep Cobalt -> Azure -> Electric Cyan -> White-Hot
-            const grad = ctx.createLinearGradient(0, height, 0, y);
-            grad.addColorStop(0, '#0048f0');
-            grad.addColorStop(0.35, '#0090f0');
-            grad.addColorStop(0.75, '#00f0dc');
-            grad.addColorStop(1, '#e0faff');
+            const highFactor = i / (barCount - 1);
+            // Blend: stable body from avg, transient attack from max (giving lively punch to hi-hats/cymbals)
+            const blend = avg * (0.60 - highFactor * 0.15) + maxInBand * (0.40 + highFactor * 0.35);
 
-            ctx.fillStyle = grad;
+            // Perceptual dynamic scaling with headroom (prevents ceiling clipping & avoids dead treble)
+            const norm = Math.max(0, (blend - 8) / 236);
+            const tilt = 1.0 + Math.pow(highFactor, 0.8) * 0.60; // progressive treble compensation
+            const tilted = Math.min(1.0, norm * tilt);
+            const curved = Math.pow(tilted, 1.15);
+            const targetHeight = curved * (height - 8) * 0.84; // max 84% height to leave breathing room
 
-            if (barHeight > 2) {
-                ctx.beginPath();
-                ctx.roundRect(x, y, barWidth, barHeight, [2, 2, 0, 0]);
-                ctx.fill();
-
-                // Peak cap dot
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(x, y - 2, barWidth, 1.5);
+            // Snappy attack, smooth organic decay
+            if (targetHeight > barHeights[i]) {
+                barHeights[i] = barHeights[i] * 0.35 + targetHeight * 0.65;
             } else {
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-                ctx.fillRect(x, height - 3, barWidth, 2);
+                barHeights[i] = Math.max(0, barHeights[i] * 0.86 - 0.7);
+            }
+
+            // Real Peak Cap Gravity & Hold Physics
+            if (barHeights[i] >= peakHeights[i]) {
+                peakHeights[i] = barHeights[i];
+                peakHolds[i] = 8; // Hold at apex for ~200ms
+                peakVelocities[i] = 0;
+            } else {
+                if (peakHolds[i] > 0) {
+                    peakHolds[i]--;
+                } else {
+                    peakVelocities[i] += 0.3; // natural downward acceleration
+                    peakHeights[i] = Math.max(barHeights[i], peakHeights[i] - peakVelocities[i]);
+                }
+            }
+
+            const x = i * step + (step - barWidth) / 2;
+            const currentH = barHeights[i];
+            const y = height - currentH - 3;
+
+            // 1. Subtle background track slot (Hardware rack look)
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+            ctx.beginPath();
+            ctx.roundRect(x, 4, barWidth, height - 7, [2, 2, 0, 0]);
+            ctx.fill();
+
+            // 2. Active dynamic bar with radiant cyan/cobalt gradient
+            if (currentH > 1.2) {
+                const grad = ctx.createLinearGradient(0, height, 0, Math.max(0, y));
+                grad.addColorStop(0, '#0048f0');       // Deep Electric Cobalt
+                grad.addColorStop(0.35, '#0090f0');    // Vibrant Azure
+                grad.addColorStop(0.75, '#00f0dc');    // Neon Cyan
+                grad.addColorStop(1.0, '#e0faff');     // Ice White Crest
+
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.roundRect(x, y, barWidth, currentH, [2.5, 2.5, 0, 0]);
+                ctx.fill();
+            }
+
+            // 3. Floating glowing peak hold cap
+            if (peakHeights[i] > 2) {
+                const peakY = height - peakHeights[i] - 4;
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowColor = '#00f0dc';
+                ctx.shadowBlur = 4;
+                ctx.beginPath();
+                ctx.roundRect(x, Math.max(2, peakY), barWidth, 1.8, [1, 1, 1, 1]);
+                ctx.fill();
+                ctx.shadowBlur = 0;
             }
         }
     }
 
+    // ===================== 2. LOGARITHMIC CURVE SPECTRUM =====================
     function drawSpectrum() {
-        ctx.fillStyle = 'rgba(8, 12, 22, 0.4)';
+        ctx.fillStyle = 'rgba(4, 9, 22, 0.55)';
         ctx.fillRect(0, 0, width, height);
 
-        // Smooth curve spectrum
+        const points = 44;
+        const binCount = dataArray.length;
+        const spectrumValues = new Float32Array(points);
+
+        for (let i = 0; i < points; i++) {
+            const { startBin, endBin } = getLogBins(i, points, binCount);
+            let sum = 0, count = 0, maxInBand = 0;
+            for (let b = startBin; b < endBin && b < binCount; b++) {
+                const val = dataArray[b];
+                sum += val;
+                if (val > maxInBand) maxInBand = val;
+                count++;
+            }
+            const highFactor = i / (points - 1);
+            const avg = count > 0 ? (sum / count) : 0;
+            const blend = avg * (0.60 - highFactor * 0.15) + maxInBand * (0.40 + highFactor * 0.35);
+            const norm = Math.max(0, (blend - 8) / 236);
+            const tilt = 1.0 + Math.pow(highFactor, 0.8) * 0.60;
+            const curved = Math.pow(Math.min(1.0, norm * tilt), 1.15);
+            spectrumValues[i] = curved * (height - 8) * 0.85;
+        }
+
         ctx.beginPath();
         ctx.moveTo(0, height);
 
-        const sliceWidth = width / (dataArray.length - 1);
-        for (let i = 0; i < dataArray.length; i++) {
-            const v = dataArray[i] / 255;
-            const y = height - (v * (height - 6));
+        const sliceWidth = width / (points - 1);
+        for (let i = 0; i < points; i++) {
+            const hVal = spectrumValues[i];
+            const y = height - hVal - 2;
             const x = i * sliceWidth;
 
             if (i === 0) {
                 ctx.lineTo(x, y);
             } else {
-                // Smooth bezier curve through points
                 const prevX = (i - 1) * sliceWidth;
-                const prevY = height - ((dataArray[i - 1] / 255) * (height - 6));
+                const prevY = height - spectrumValues[i - 1] - 2;
                 const cpX = (prevX + x) / 2;
                 ctx.quadraticCurveTo(prevX, prevY, cpX, (prevY + y) / 2);
             }
@@ -208,14 +323,14 @@ export function createVisualizer(options = {}) {
         ctx.closePath();
 
         const grad = ctx.createLinearGradient(0, 0, 0, height);
-        grad.addColorStop(0, 'rgba(0, 240, 220, 0.65)');
-        grad.addColorStop(0.45, 'rgba(0, 120, 240, 0.35)');
-        grad.addColorStop(1, 'rgba(4, 15, 38, 0.05)');
+        grad.addColorStop(0, 'rgba(0, 240, 220, 0.5)');
+        grad.addColorStop(0.5, 'rgba(0, 120, 240, 0.2)');
+        grad.addColorStop(1, 'rgba(4, 15, 38, 0.02)');
 
         ctx.fillStyle = grad;
         ctx.fill();
 
-        ctx.lineWidth = 2.2;
+        ctx.lineWidth = 2.0;
         ctx.strokeStyle = '#00f0dc';
         ctx.shadowColor = '#00f0dc';
         ctx.shadowBlur = 8;
@@ -223,50 +338,61 @@ export function createVisualizer(options = {}) {
         ctx.shadowBlur = 0;
     }
 
+    // ===================== 3. LIQUID OSCILLOSCOPE WAVE =====================
     function drawWave() {
-        ctx.fillStyle = 'rgba(8, 12, 22, 0.3)';
+        ctx.fillStyle = 'rgba(4, 9, 22, 0.55)';
         ctx.fillRect(0, 0, width, height);
 
-        ctx.lineWidth = 2.2;
+        const arr = (timeDomainArray && timeDomainArray.length > 0) ? timeDomainArray : null;
+        const len = arr ? arr.length : dataArray.length;
+        const sliceWidth = width / (len - 1);
+
+        ctx.beginPath();
+        for (let i = 0; i < len; i++) {
+            let v;
+            if (arr) {
+                // Real audio time-domain waveform (-1.0 to +1.0)
+                v = (arr[i] - 128) / 128;
+            } else {
+                v = ((dataArray[i] || 0) / 255 - 0.5) * Math.sin((i / len) * Math.PI * 4);
+            }
+
+            const y = (height / 2) + (v * (height * 0.40));
+            const x = i * sliceWidth;
+
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+
+        ctx.lineWidth = 2.0;
         ctx.strokeStyle = '#00f0dc';
         ctx.shadowColor = '#00f0dc';
         ctx.shadowBlur = 10;
-        ctx.beginPath();
-
-        const sliceWidth = width / dataArray.length;
-        let x = 0;
-
-        for (let i = 0; i < dataArray.length; i++) {
-            const v = (dataArray[i] / 255);
-            const y = height / 2 + (v - 0.5) * height * 0.85;
-
-            if (i === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
-            x += sliceWidth;
-        }
-
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#0284c7';
         ctx.stroke();
         ctx.shadowBlur = 0;
     }
 
+    // ===================== 4. CIRCULAR RADIAL PULSE =====================
     function drawCircle() {
-        ctx.fillStyle = 'rgba(8, 12, 22, 0.25)';
+        ctx.fillStyle = 'rgba(6, 12, 24, 0.3)';
         ctx.fillRect(0, 0, width, height);
 
         const centerX = width / 2;
         const centerY = height / 2;
-        const radius = Math.min(width, height) / 2 - 8;
+        const radius = Math.min(width, height) / 2 - 6;
         const segments = 36;
+        const binCount = dataArray.length;
 
         for (let i = 0; i < segments; i++) {
-            const dataIndex = Math.floor(i * (dataArray.length / segments));
-            const value = dataArray[dataIndex] || 0;
-            const amplitude = (value / 255) * 16;
+            const { startBin, endBin } = getLogBins(i, segments, binCount);
+            let sum = 0, count = 0;
+            for (let b = startBin; b < endBin && b < binCount; b++) {
+                sum += dataArray[b];
+                count++;
+            }
+            const val = count > 0 ? (sum / count) : 0;
+            const tilt = 1.0 + Math.pow(i / (segments - 1), 1.1) * 1.3;
+            const amplitude = (Math.min(255, val * tilt) / 255) * 14;
 
             const angle = (i / segments) * Math.PI * 2 - Math.PI / 2;
             const innerRadius = radius - 2;
@@ -277,9 +403,9 @@ export function createVisualizer(options = {}) {
             const x2 = centerX + Math.cos(angle) * outerRadius;
             const y2 = centerY + Math.sin(angle) * outerRadius;
 
-            const hue = 190 + (value / 255) * 90;
-            ctx.strokeStyle = `hsl(${hue}, 80%, 60%)`;
-            ctx.lineWidth = 2.5;
+            const hue = 185 + (val / 255) * 65;
+            ctx.strokeStyle = `hsl(${hue}, 90%, 60%)`;
+            ctx.lineWidth = 2.4;
 
             ctx.beginPath();
             ctx.moveTo(x1, y1);
@@ -306,8 +432,8 @@ export function createVisualizer(options = {}) {
         }
     }
 
-    function updateData(data) {
-        if (!data || data.length === 0) {
+    function updateData(freqData, timeData) {
+        if (!freqData || freqData.length === 0) {
             silenceCount++;
             if (silenceCount > SILENCE_THRESHOLD && hasAudioData) {
                 hasAudioData = false;
@@ -316,10 +442,17 @@ export function createVisualizer(options = {}) {
             return;
         }
 
-        if (dataArray.length !== data.length) {
-            dataArray = new Uint8Array(data.length);
+        if (dataArray.length !== freqData.length) {
+            dataArray = new Uint8Array(freqData.length);
         }
-        dataArray.set(data);
+        dataArray.set(freqData);
+
+        if (timeData && timeData.length > 0) {
+            if (!timeDomainArray || timeDomainArray.length !== timeData.length) {
+                timeDomainArray = new Uint8Array(timeData.length);
+            }
+            timeDomainArray.set(timeData);
+        }
 
         if (hasSignificantAudio()) {
             silenceCount = 0;
@@ -347,6 +480,9 @@ export function createVisualizer(options = {}) {
     container.reset = () => {
         hasAudioData = false;
         silenceCount = 0;
+        barHeights.fill(0);
+        peakHeights.fill(0);
+        peakHolds.fill(0);
         clearCanvas();
         showIdle();
     };

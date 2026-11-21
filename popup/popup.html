@@ -133,6 +133,10 @@
       <div class="preset-section">
         <div class="preset-select-wrapper">
           <select class="preset-select" id="presetSelect">
+            <optgroup label="✨ AI Auto-EQ Tự động" id="aiPresetOptgroup" style="display: none;">
+              <option value="ai-active" id="aiPresetOption">✨ AI Auto: Đang nhận diện...</option>
+            </optgroup>
+            <option value="custom" id="customPresetOption" style="display: none;">⚙️ Tùy chỉnh cá nhân (Custom)</option>
             <optgroup label="⚡ Zyno Signature">
               <option value="zyno-signature">⚡ Zyno Studio Signature</option>
               <option value="zyno-sub-bass">🎧 Zyno Sub-Bass Club</option>
@@ -359,18 +363,15 @@
       </div>
     </div>
 
-    <!-- Toast Notifications Container -->
-    <div class="toast-container" id="toastContainer"></div>
-
     <!-- Footer -->
     <footer class="footer">
-      <a href="https://anytools.online/browser-extensions" target="_blank" class="footer-link">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-          <polyline points="15 3 21 3 21 9"/>
-          <line x1="10" y1="14" x2="21" y2="3"/>
+      <a href="https://github.com/xuantruongg03" target="_blank" class="footer-link" title="Khám phá các tiện ích và công cụ trong Hệ sinh thái Zyno">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="2" y1="12" x2="22" y2="12"></line>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
         </svg>
-        Audio Tools Online
+        Zyno
       </a>
       <div class="footer-credit">Zyno Audio Equalizer & Booster Pro v3.0 • xuantruongg03</div>
     </footer>
