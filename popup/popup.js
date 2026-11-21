@@ -76,48 +76,72 @@ async function init() {
     // Restore AI Auto-EQ state & query live status from offscreen
     chrome.storage.local.get([STORAGE_KEYS.AI_AUTO_EQ, STORAGE_KEYS.AI_CURRENT_GENRE], (res) => {
         const aiEnabled = !!res[STORAGE_KEYS.AI_AUTO_EQ];
-        if (aiAutoEqToggle) aiAutoEqToggle.checked = aiEnabled;
+        if (aiAutoEqToggle) {
+            aiAutoEqToggle.checked = aiEnabled;
+            aiAutoEqToggle.disabled = !currentSettings.enabled;
+        }
+
+        if (!currentSettings.enabled) {
+            // Audio is currently OFF: AI Auto-EQ must display as OFF!
+            updateAiAutoEqBar(false, true);
+            if (aiPresetOptgroup) aiPresetOptgroup.style.display = 'none';
+            if (currentSettings.preset === 'ai-active') {
+                currentSettings.preset = 'flat';
+                presetSelect.value = 'flat';
+                currentSettings.bands = getFlatBands();
+                updateEQKnobs();
+                dspGraph?.updateBands(currentSettings.bands);
+            }
+            return;
+        }
+
+        if (!aiEnabled) {
+            updateAiAutoEqBar(false, false);
+            if (aiPresetOptgroup) aiPresetOptgroup.style.display = 'none';
+            return;
+        }
 
         // If a genre is already saved, apply and display it immediately!
         const savedGenre = res[STORAGE_KEYS.AI_CURRENT_GENRE];
-        if (aiEnabled && savedGenre && AI_GENRE_PROFILES[savedGenre]) {
+        if (savedGenre && AI_GENRE_PROFILES[savedGenre]) {
             const p = AI_GENRE_PROFILES[savedGenre];
             applyAiGenreToUI(p, 0.95, true);
         } else {
-            updateAiAutoEqBar(aiEnabled);
+            updateAiAutoEqBar(true, false);
         }
 
-        if (aiEnabled) {
-            chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (status) => {
-                const capturedTabId = status?.tabId;
-                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                    const activeTab = tabs && tabs[0];
-                    // Only forward tab title if the active tab IS the one currently being captured!
-                    if (activeTab && capturedTabId && activeTab.id === capturedTabId && activeTab.title) {
-                        chrome.runtime.sendMessage({
-                            type: 'UPDATE_TAB_TITLE',
-                            target: 'offscreen',
-                            title: activeTab.title
-                        }).catch(() => {});
-                    }
+        chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (status) => {
+            if (!status?.isActive) return;
+            const capturedTabId = status.tabId;
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                const activeTab = tabs && tabs[0];
+                // Only forward tab title if the active tab IS the one currently being captured!
+                if (activeTab && capturedTabId && activeTab.id === capturedTabId && activeTab.title) {
+                    chrome.runtime.sendMessage({
+                        type: 'UPDATE_TAB_TITLE',
+                        target: 'offscreen',
+                        title: activeTab.title
+                    }).catch(() => {});
+                }
 
-                    // Query AI status from offscreen
-                    let attempts = 0;
-                    function queryAiStatus() {
-                        chrome.runtime.sendMessage({ type: 'GET_AI_STATUS' }, (statusRes) => {
-                            if (chrome.runtime.lastError) return;
-                            if (statusRes && statusRes.profile) {
-                                applyAiGenreToUI(statusRes.profile, 0.95, statusRes.metaMatched);
-                            } else if (attempts < 5) {
-                                attempts++;
-                                setTimeout(queryAiStatus, 350);
-                            }
-                        });
-                    }
-                    queryAiStatus();
-                });
+                // Query AI status from offscreen
+                let attempts = 0;
+                function queryAiStatus() {
+                    if (!currentSettings.enabled || !aiAutoEqToggle?.checked) return;
+                    chrome.runtime.sendMessage({ type: 'GET_AI_STATUS' }, (statusRes) => {
+                        if (chrome.runtime.lastError) return;
+                        if (!currentSettings.enabled || !aiAutoEqToggle?.checked) return;
+                        if (statusRes && statusRes.profile) {
+                            applyAiGenreToUI(statusRes.profile, 0.95, statusRes.metaMatched);
+                        } else if (attempts < 5) {
+                            attempts++;
+                            setTimeout(queryAiStatus, 350);
+                        }
+                    });
+                }
+                queryAiStatus();
             });
-        }
+        });
     });
 }
 
@@ -578,7 +602,14 @@ function setupEventListeners() {
         aiAutoEqToggle.addEventListener('change', () => {
             const enabled = aiAutoEqToggle.checked;
             chrome.storage.local.set({ [STORAGE_KEYS.AI_AUTO_EQ]: enabled });
-            updateAiAutoEqBar(enabled);
+
+            if (!currentSettings.enabled) {
+                updateAiAutoEqBar(false, true);
+                showToast(enabled ? 'Auto AI sẽ tự kích hoạt khi Bật Audio' : 'Đã tắt Auto AI', 'info');
+                return;
+            }
+
+            updateAiAutoEqBar(enabled, false);
 
             if (enabled) {
                 // Pass current tab title directly so offscreen classifier detects instantly
@@ -603,11 +634,12 @@ function setupEventListeners() {
 
                 chrome.runtime.sendMessage({ type: 'GET_AI_STATUS' }, (statusRes) => {
                     if (chrome.runtime.lastError) return;
-                    if (statusRes && statusRes.profile) {
+                    if (statusRes && statusRes.profile && aiAutoEqToggle.checked) {
                         applyAiGenreToUI(statusRes.profile, 0.95, statusRes.metaMatched ?? true);
                     }
                 });
             } else {
+                chrome.storage.local.remove([STORAGE_KEYS.AI_CURRENT_GENRE]);
                 chrome.runtime.sendMessage({
                     type: 'SET_AI_AUTO_EQ',
                     target: 'offscreen',
@@ -634,6 +666,7 @@ function setupEventListeners() {
                 dspGraph?.updateBands(currentSettings.bands);
                 saveSettings();
                 sendSettingsUpdate();
+                showToast('Đã tắt Auto AI', 'info');
             }
         });
     }
@@ -879,7 +912,19 @@ async function handleEQChange(band, value) {
     currentSettings.bands[band] = value;
     currentSettings.preset = 'custom';
     if (customPresetOption) customPresetOption.style.display = 'block';
+    if (aiPresetOptgroup) aiPresetOptgroup.style.display = 'none';
     presetSelect.value = 'custom';
+    if (aiAutoEqToggle && aiAutoEqToggle.checked) {
+        aiAutoEqToggle.checked = false;
+        chrome.storage.local.set({ [STORAGE_KEYS.AI_AUTO_EQ]: false });
+        chrome.storage.local.remove([STORAGE_KEYS.AI_CURRENT_GENRE]);
+        chrome.runtime.sendMessage({
+            type: 'SET_AI_AUTO_EQ',
+            target: 'offscreen',
+            enabled: false
+        }, () => { if (chrome.runtime.lastError) {} });
+        updateAiAutoEqBar(false, !currentSettings.enabled);
+    }
     dspGraph?.updateBands(currentSettings.bands);
     await saveSettings();
     await sendSettingsUpdate();
@@ -892,12 +937,13 @@ async function handlePresetChange() {
     if (aiAutoEqToggle && aiAutoEqToggle.checked) {
         aiAutoEqToggle.checked = false;
         chrome.storage.local.set({ [STORAGE_KEYS.AI_AUTO_EQ]: false });
+        chrome.storage.local.remove([STORAGE_KEYS.AI_CURRENT_GENRE]);
         chrome.runtime.sendMessage({
             type: 'SET_AI_AUTO_EQ',
             target: 'offscreen',
             enabled: false
         }, () => { if (chrome.runtime.lastError) {} });
-        updateAiAutoEqBar(false);
+        updateAiAutoEqBar(false, !currentSettings.enabled);
     }
 
     if (aiPresetOptgroup) aiPresetOptgroup.style.display = 'none';
@@ -918,12 +964,13 @@ async function handleFlatEQ() {
     if (aiAutoEqToggle && aiAutoEqToggle.checked) {
         aiAutoEqToggle.checked = false;
         chrome.storage.local.set({ [STORAGE_KEYS.AI_AUTO_EQ]: false });
+        chrome.storage.local.remove([STORAGE_KEYS.AI_CURRENT_GENRE]);
         chrome.runtime.sendMessage({
             type: 'SET_AI_AUTO_EQ',
             target: 'offscreen',
             enabled: false
         }, () => { if (chrome.runtime.lastError) {} });
-        updateAiAutoEqBar(false);
+        updateAiAutoEqBar(false, !currentSettings.enabled);
     }
     if (aiPresetOptgroup) aiPresetOptgroup.style.display = 'none';
     currentSettings.preset = 'flat';
@@ -1029,21 +1076,24 @@ async function applySiteSettings() {
     if (!currentDomain || !siteManager.autoApply) return;
     const siteSettings = siteManager.getForSite(currentDomain);
     if (siteSettings) {
-        // If AI Auto-EQ is active and a genre was detected, preserve the dynamic AI acoustic curve!
-        const aiRes = await new Promise(r => chrome.storage.local.get([STORAGE_KEYS.AI_AUTO_EQ, STORAGE_KEYS.AI_CURRENT_GENRE], r));
-        const aiActive = !!aiRes[STORAGE_KEYS.AI_AUTO_EQ];
-        const currentGenre = aiRes[STORAGE_KEYS.AI_CURRENT_GENRE];
-        if (aiActive && currentGenre && AI_GENRE_PROFILES[currentGenre]) {
-            const p = AI_GENRE_PROFILES[currentGenre];
-            applySettings({
-                ...siteSettings,
-                bands: { ...p.bands },
-                preset: 'ai-active'
-            });
-            applyAiGenreToUI(p, 0.95, true);
-        } else {
-            applySettings(siteSettings);
+        // If AI Auto-EQ is active, Audio is ON, and a genre was detected, preserve the dynamic AI acoustic curve!
+        if (currentSettings.enabled) {
+            const aiRes = await new Promise(r => chrome.storage.local.get([STORAGE_KEYS.AI_AUTO_EQ, STORAGE_KEYS.AI_CURRENT_GENRE], r));
+            const aiActive = !!aiRes[STORAGE_KEYS.AI_AUTO_EQ];
+            const currentGenre = aiRes[STORAGE_KEYS.AI_CURRENT_GENRE];
+            if (aiActive && currentGenre && AI_GENRE_PROFILES[currentGenre]) {
+                const p = AI_GENRE_PROFILES[currentGenre];
+                applySettings({
+                    ...siteSettings,
+                    bands: { ...p.bands },
+                    preset: 'ai-active'
+                });
+                applyAiGenreToUI(p, 0.95, true);
+                updateSiteProfileUI();
+                return;
+            }
         }
+        applySettings(siteSettings);
     }
     updateSiteProfileUI();
 }
@@ -1114,21 +1164,21 @@ function handleBackgroundMessage(message) {
             startVisualizerUpdates();
             break;
         case 'AUDIO_STOPPED':
-            updateStatus(false);
             currentSettings.enabled = false;
             powerToggle.checked = false;
+            updateStatus(false);
             stopVisualizerUpdates();
             break;
         case 'AUDIO_ERROR':
-            updateStatus(false);
-            statusText.textContent = 'Off';
             currentSettings.enabled = false;
             powerToggle.checked = false;
+            updateStatus(false);
+            statusText.textContent = 'Off';
             stopVisualizerUpdates();
             showToast('Lỗi xử lý âm thanh: ' + (message.error || ''), 'error');
             break;
         case 'AI_GENRE_DETECTED':
-            if (message.profile) {
+            if (currentSettings.enabled && aiAutoEqToggle?.checked && message.profile) {
                 applyAiGenreToUI(message.profile, message.confidence, message.metaMatched);
             }
             break;
@@ -1137,6 +1187,12 @@ function handleBackgroundMessage(message) {
 
 function applyAiGenreToUI(profile, confidence = 0.95, metaMatched = true) {
     if (!profile) return;
+    if (!currentSettings.enabled || !aiAutoEqToggle?.checked) {
+        // Master Audio is OFF or Auto AI is OFF: do not display or apply active AI Auto-EQ
+        updateAiAutoEqBar(false, !currentSettings.enabled);
+        if (aiPresetOptgroup) aiPresetOptgroup.style.display = 'none';
+        return;
+    }
     updateAiGenreBadge(profile, confidence, metaMatched);
 
     // Sync Preset dropdown to show AI Active genre instead of Flat/stale preset
@@ -1162,11 +1218,24 @@ function applyAiGenreToUI(profile, confidence = 0.95, metaMatched = true) {
     sendSettingsUpdate();
 }
 
-function updateAiAutoEqBar(enabled) {
+function updateAiAutoEqBar(enabled, isAudioOff = false) {
     if (!aiAutoEqBar || !aiGenreName) return;
+    if (isAudioOff || !currentSettings.enabled) {
+        aiAutoEqBar.classList.remove('active');
+        aiAutoEqBar.classList.add('disabled');
+        aiGenreName.textContent = 'AI Auto-EQ: Đã tắt';
+        if (aiAutoEqToggle) {
+            aiAutoEqToggle.disabled = true;
+        }
+        return;
+    }
+    aiAutoEqBar.classList.remove('disabled');
+    if (aiAutoEqToggle) {
+        aiAutoEqToggle.disabled = false;
+    }
     if (enabled) {
         aiAutoEqBar.classList.add('active');
-        if (aiGenreName.textContent.includes('Đã tắt') || aiGenreName.textContent.includes('Đang chờ')) {
+        if (aiGenreName.textContent.includes('Tắt') || aiGenreName.textContent.includes('Đang chờ')) {
             aiGenreName.textContent = 'AI Auto-EQ: Đang nghe & phân tích...';
         }
     } else {
@@ -1395,6 +1464,49 @@ async function checkStatus() {
 function updateStatus(isActive) {
     statusIndicator.className = 'status-indicator ' + (isActive ? 'active' : '');
     statusText.textContent = isActive ? 'Active' : 'Off';
+
+    if (!isActive) {
+        // When Audio is Off, genre detection is 100% Off
+        updateAiAutoEqBar(false, true);
+        if (aiPresetOptgroup) {
+            aiPresetOptgroup.style.display = 'none';
+        }
+        if (currentSettings.preset === 'ai-active') {
+            const domain = currentDomain;
+            const hasSite = domain && siteManager.hasSiteSettings(domain);
+            const siteConf = hasSite ? siteManager.getSiteSettings(domain) : null;
+            if (siteConf && siteConf.bands) {
+                currentSettings.bands = { ...siteConf.bands };
+                currentSettings.preset = siteConf.preset || 'flat';
+            } else {
+                currentSettings.bands = getFlatBands();
+                currentSettings.preset = 'flat';
+            }
+            presetSelect.value = PRESETS[currentSettings.preset] ? currentSettings.preset : 'flat';
+            updateEQKnobs();
+            dspGraph?.updateBands(currentSettings.bands);
+        }
+        chrome.storage.local.remove([STORAGE_KEYS.AI_CURRENT_GENRE]);
+    } else {
+        // When Audio is Active, check Auto AI state
+        chrome.storage.local.get([STORAGE_KEYS.AI_AUTO_EQ, STORAGE_KEYS.AI_CURRENT_GENRE], (res) => {
+            const aiEnabled = !!res[STORAGE_KEYS.AI_AUTO_EQ];
+            if (aiAutoEqToggle) {
+                aiAutoEqToggle.disabled = false;
+                aiAutoEqToggle.checked = aiEnabled;
+            }
+            if (aiEnabled) {
+                const savedGenre = res[STORAGE_KEYS.AI_CURRENT_GENRE];
+                if (savedGenre && AI_GENRE_PROFILES[savedGenre]) {
+                    applyAiGenreToUI(AI_GENRE_PROFILES[savedGenre], 0.95, true);
+                } else {
+                    updateAiAutoEqBar(true, false);
+                }
+            } else {
+                updateAiAutoEqBar(false, false);
+            }
+        });
+    }
 }
 
 async function sendSettingsUpdate() {
@@ -1440,12 +1552,20 @@ function updateUI() {
 
     // Preset
     if (currentSettings.preset === 'ai-active') {
-        if (aiPresetOptgroup) aiPresetOptgroup.style.display = 'block';
-        presetSelect.value = 'ai-active';
+        if (currentSettings.enabled && aiAutoEqToggle?.checked) {
+            if (aiPresetOptgroup) aiPresetOptgroup.style.display = 'block';
+            presetSelect.value = 'ai-active';
+        } else {
+            if (aiPresetOptgroup) aiPresetOptgroup.style.display = 'none';
+            currentSettings.preset = 'flat';
+            presetSelect.value = 'flat';
+        }
     } else if (currentSettings.preset === 'custom') {
         if (customPresetOption) customPresetOption.style.display = 'block';
+        if (aiPresetOptgroup) aiPresetOptgroup.style.display = 'none';
         presetSelect.value = 'custom';
     } else {
+        if (aiPresetOptgroup) aiPresetOptgroup.style.display = 'none';
         presetSelect.value = PRESETS[currentSettings.preset] ? currentSettings.preset : 'flat';
     }
 

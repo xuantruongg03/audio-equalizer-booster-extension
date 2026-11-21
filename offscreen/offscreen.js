@@ -629,6 +629,9 @@ async function stopAudioProcessing(sendMessage = true) {
             autoClassifier.stop();
             autoClassifier = null;
         }
+        try {
+            chrome.storage.local.remove([STORAGE_KEYS.AI_CURRENT_GENRE]);
+        } catch (e) {}
 
         const tabId = currentTabId;
         currentTabId = null;
@@ -855,6 +858,7 @@ function applyEffects(effects) {
 // ===================== AI HYBRID AUTO-EQ DISPATCHER =====================
 function handleAiGenreDetected({ genre, profile, confidence, metaMatched }) {
     if (!audioContext || audioContext.state === 'closed') return;
+    if (!autoClassifier || !autoClassifier.enabled) return;
     if (audioContext.state === 'suspended') {
         audioContext.resume().catch(() => {});
     }
@@ -974,15 +978,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             const enabled = !!message.enabled;
             try {
                 chrome.storage.local.set({ [STORAGE_KEYS.AI_AUTO_EQ]: enabled });
+                if (!enabled) {
+                    chrome.storage.local.remove([STORAGE_KEYS.AI_CURRENT_GENRE]);
+                }
             } catch (e) {}
             if (autoClassifier) {
                 if (message.title) {
                     autoClassifier.setTabTitle(message.title);
                 }
-                if (enabled) {
+                if (enabled && audioContext && audioContext.state === 'running') {
                     autoClassifier.start();
                 } else {
                     autoClassifier.stop();
+                    autoClassifier.currentGenre = null;
                 }
             }
             sendResponse({ success: true, enabled });
@@ -998,6 +1006,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'GET_AI_STATUS': {
+            const isAudioActive = audioContext && audioContext.state === 'running';
+            if (!isAudioActive || !autoClassifier || !autoClassifier.enabled) {
+                sendResponse({
+                    success: true,
+                    enabled: false,
+                    audioRunning: !!isAudioActive,
+                    currentGenre: null,
+                    profile: null,
+                    bands: null,
+                    metaMatched: false
+                });
+                break;
+            }
+
             if (autoClassifier && autoClassifier.enabled) {
                 if (audioContext && audioContext.state === 'suspended') {
                     audioContext.resume().catch(() => {});
@@ -1014,6 +1036,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({
                 success: true,
                 enabled: autoClassifier ? autoClassifier.enabled : false,
+                audioRunning: true,
                 currentGenre: currentG,
                 profile: profile,
                 bands: profile ? profile.bands : null,

@@ -83,6 +83,7 @@ async function stopExistingCapture() {
     isCapturing = false;
     currentCaptureTabId = null;
     currentCaptureTabDomain = null;
+    await chrome.storage.local.remove([STORAGE_KEYS.AI_CURRENT_GENRE]).catch(() => {});
 }
 
 async function getTabCaptureStreamId(tabId) {
@@ -258,6 +259,7 @@ async function handleMessage(message, sender, sendResponse) {
 
             case 'STOP_AUDIO_CAPTURE': {
                 await chrome.storage.local.set({ masterEnabled: false });
+                await chrome.storage.local.remove([STORAGE_KEYS.AI_CURRENT_GENRE]).catch(() => {});
                 const result = await stopCapture();
                 sendResponse(result);
                 break;
@@ -326,21 +328,20 @@ async function handleMessage(message, sender, sendResponse) {
                         target: 'offscreen'
                     }, (response) => {
                         if (chrome.runtime.lastError) {
-                            sendResponse({ success: false });
+                            sendResponse({ success: false, enabled: false, profile: null });
                         } else {
-                            sendResponse(response || { success: false });
+                            sendResponse(response || { success: false, enabled: false, profile: null });
                         }
                     });
                 } else {
-                    const res = await chrome.storage.local.get([STORAGE_KEYS.AI_AUTO_EQ, STORAGE_KEYS.AI_CURRENT_GENRE]);
-                    const currentG = res[STORAGE_KEYS.AI_CURRENT_GENRE];
-                    const profile = currentG ? AI_GENRE_PROFILES[currentG] : null;
                     sendResponse({
                         success: true,
-                        enabled: !!res[STORAGE_KEYS.AI_AUTO_EQ],
-                        currentGenre: currentG,
-                        profile: profile,
-                        bands: profile ? profile.bands : null
+                        enabled: false,
+                        audioRunning: false,
+                        currentGenre: null,
+                        profile: null,
+                        bands: null,
+                        metaMatched: false
                     });
                 }
                 break;
