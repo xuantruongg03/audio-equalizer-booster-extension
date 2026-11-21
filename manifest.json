@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "Zyno Audio Equalizer & Booster Pro",
     "version": "3.0.0",
-    "description": "Zyno Audio Pro - Professional 10-band equalizer with 35+ presets, volume boost up to 800%, studio reverb, sub-bass enhancer, 7D auto-pan, spatial audio, A/B compare & per-site profiles.",
+    "description": "Studio 10-band equalizer, 800% volume booster, reverb, bass boost, spatial 7D audio, AI Auto-Genre and per-site profiles.",
     "author": "Zyno Ecosystem",
     "permissions": ["tabCapture", "offscreen", "storage", "activeTab", "tabs"],
     "host_permissions": [
@@ -15,7 +15,8 @@
             "16": "icons/icon16.png",
             "32": "icons/icon32.png",
             "48": "icons/icon48.png",
-            "128": "icons/icon128.png"
+            "128": "icons/icon128.png",
+            "256": "icons/icon256.png"
         },
         "default_title": "Zyno Audio Equalizer & Booster Pro v3.0"
     },
@@ -23,7 +24,8 @@
         "16": "icons/icon16.png",
         "32": "icons/icon32.png",
         "48": "icons/icon48.png",
-        "128": "icons/icon128.png"
+        "128": "icons/icon128.png",
+        "256": "icons/icon256.png"
     },
     "background": {
         "service_worker": "background/background.js",

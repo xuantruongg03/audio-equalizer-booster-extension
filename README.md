@@ -107,6 +107,14 @@ Tab Audio Stream → Preamp Gain → Gain (Volume & Mono Downmix) → 10 Paramet
 
 ---
 
+## 🏪 Chrome Web Store Ready
+Tài liệu hướng dẫn đăng tải, mô tả chi tiết, giải trình quyền và bộ tài nguyên đồ họa quảng cáo đã được chuẩn bị đầy đủ:
+- **Tài liệu Store Listing:** [CHROME_STORE_LISTING.md](CHROME_STORE_LISTING.md)
+- **Store Assets & Screenshots:** Thư mục `store_assets/` (Small promo, Marquee banner, 5 ảnh chụp giao diện chuẩn 1280x800)
+- **Bộ Icon HiDPI:** Thư mục `icons/` (16x16, 32x32, 48x48, 128x128, 256x256) và `logo/logo.png` (512x512)
+
+---
+
 ## 📄 License
 
 Phát hành dưới giấy phép [MIT License](LICENSE).
