@@ -18,6 +18,7 @@ let currentCaptureTabId = null;
 let currentCaptureTabDomain = null;
 let isCapturing = false;
 let lastCaptureTime = 0;
+let lastReloadedCapturedTabId = null;
 
 // Track active tabs and their settings
 let tabSettings = new Map();
@@ -25,13 +26,70 @@ let tabSettings = new Map();
 // ===================== OFFSCREEN DOCUMENT MANAGEMENT =====================
 
 async function hasOffscreenDocument() {
-    const matchedClients = await clients.matchAll();
-    for (const client of matchedClients) {
-        if (client.url.endsWith(OFFSCREEN_DOCUMENT_PATH)) {
+    try {
+        if (chrome.runtime.getContexts) {
+            const contexts = await chrome.runtime.getContexts({
+                contextTypes: ['OFFSCREEN_DOCUMENT']
+            }).catch(() => []);
+            if (contexts && contexts.length > 0) {
+                return true;
+            }
+        }
+        const matchedClients = await clients.matchAll();
+        for (const client of matchedClients) {
+            if (client.url.endsWith(OFFSCREEN_DOCUMENT_PATH)) {
+                return true;
+            }
+        }
+    } catch (e) {}
+    return false;
+}
+
+async function syncCaptureState() {
+    const hasDoc = await hasOffscreenDocument();
+    if (!hasDoc) {
+        if (isCapturing || currentCaptureTabId) {
+            isCapturing = false;
+            currentCaptureTabId = null;
+            currentCaptureTabDomain = null;
+            await chrome.storage.session.remove(['isCapturing', 'currentCaptureTabId', 'currentCaptureTabDomain']).catch(() => {});
+        }
+        return false;
+    }
+
+    // If service worker just woke up from idle sleep or memory was reset
+    if (!isCapturing || !currentCaptureTabId) {
+        const stored = await chrome.storage.session.get(['isCapturing', 'currentCaptureTabId', 'currentCaptureTabDomain']).catch(() => ({}));
+        if (stored.isCapturing && stored.currentCaptureTabId) {
+            isCapturing = true;
+            currentCaptureTabId = stored.currentCaptureTabId;
+            currentCaptureTabDomain = stored.currentCaptureTabDomain || null;
             return true;
         }
+
+        // Direct query to offscreen engine as definitive fallback
+        try {
+            const status = await new Promise((resolve) => {
+                chrome.runtime.sendMessage({ type: 'GET_ENGINE_STATUS', target: 'offscreen' }, (res) => {
+                    if (chrome.runtime.lastError) resolve(null);
+                    else resolve(res);
+                });
+            });
+            if (status && status.isActive && status.tabId) {
+                isCapturing = true;
+                currentCaptureTabId = status.tabId;
+                const t = await chrome.tabs.get(status.tabId).catch(() => null);
+                currentCaptureTabDomain = t?.url ? getDomain(t.url) : null;
+                await chrome.storage.session.set({
+                    isCapturing: true,
+                    currentCaptureTabId: currentCaptureTabId,
+                    currentCaptureTabDomain: currentCaptureTabDomain
+                }).catch(() => {});
+                return true;
+            }
+        } catch (e) {}
     }
-    return false;
+    return isCapturing;
 }
 
 async function setupOffscreenDocument() {
@@ -46,8 +104,11 @@ async function setupOffscreenDocument() {
 
     creatingOffscreenDocument = chrome.offscreen.createDocument({
         url: OFFSCREEN_DOCUMENT_PATH,
-        reasons: [chrome.offscreen.Reason.USER_MEDIA],
-        justification: 'Audio processing requires AudioContext which needs DOM access'
+        reasons: [
+            chrome.offscreen.Reason.USER_MEDIA,
+            chrome.offscreen.Reason.AUDIO_PLAYBACK
+        ],
+        justification: 'Audio processing and playback requires AudioContext in DOM environment'
     });
 
     await creatingOffscreenDocument;
@@ -61,7 +122,9 @@ async function closeOffscreenDocument() {
         console.log('[Audio EQ Pro v3.0] Offscreen document closed');
     }
     currentCaptureTabId = null;
+    currentCaptureTabDomain = null;
     isCapturing = false;
+    await chrome.storage.session.remove(['isCapturing', 'currentCaptureTabId', 'currentCaptureTabDomain']).catch(() => {});
 }
 
 // ===================== TAB CAPTURE =====================
@@ -83,6 +146,7 @@ async function stopExistingCapture() {
     isCapturing = false;
     currentCaptureTabId = null;
     currentCaptureTabDomain = null;
+    await chrome.storage.session.remove(['isCapturing', 'currentCaptureTabId', 'currentCaptureTabDomain']).catch(() => {});
     await chrome.storage.local.remove([STORAGE_KEYS.AI_CURRENT_GENRE]).catch(() => {});
 }
 
@@ -122,6 +186,7 @@ async function startCapture(tabId) {
         }
 
         // If this tab is already capturing and running, no need to recreate
+        await syncCaptureState();
         if (isCapturing && currentCaptureTabId === tabId && await hasOffscreenDocument()) {
             console.log('[Audio EQ Pro v3.0] Tab', tabId, 'is already actively captured');
             return { success: true, tabId: tabId };
@@ -136,6 +201,11 @@ async function startCapture(tabId) {
         currentCaptureTabId = tabId;
         let tabTitle = tab.title || '';
         currentCaptureTabDomain = tab.url ? getDomain(tab.url) : null;
+        await chrome.storage.session.set({
+            isCapturing: true,
+            currentCaptureTabId: tabId,
+            currentCaptureTabDomain: currentCaptureTabDomain
+        }).catch(() => {});
 
         // Initialize audio engine in offscreen document and await response cleanly
         await new Promise((resolve) => {
@@ -240,9 +310,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 async function handleMessage(message, sender, sendResponse) {
     try {
+        await syncCaptureState();
+
         switch (message.type) {
             case 'START_AUDIO_CAPTURE': {
-                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                const targetTabId = message.tabId;
+                let tab = null;
+                if (targetTabId) {
+                    tab = await chrome.tabs.get(targetTabId).catch(() => null);
+                }
+                if (!tab) {
+                    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
+                    tab = activeTab;
+                }
                 if (!tab || !tab.id) {
                     sendResponse({ success: false, error: 'No active tab found' });
                     return;
@@ -251,7 +331,6 @@ async function handleMessage(message, sender, sendResponse) {
                 // Persist master ON state
                 await chrome.storage.local.set({ masterEnabled: true });
 
-                // Always perform clean start to avoid getting stuck on reloaded tabs
                 const result = await startCapture(tab.id);
                 sendResponse(result);
                 break;
@@ -348,7 +427,8 @@ async function handleMessage(message, sender, sendResponse) {
             }
 
             case 'GET_STATUS': {
-                const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                await syncCaptureState();
+                const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
                 const hasDoc = await hasOffscreenDocument();
                 const { masterEnabled } = await chrome.storage.local.get(['masterEnabled']);
                 // Audio engine is active if an offscreen document is capturing an active audio stream
@@ -357,12 +437,6 @@ async function handleMessage(message, sender, sendResponse) {
                     isCapturing &&
                     currentCaptureTabId
                 );
-
-                // Auto-heal any stale state if offscreen document is gone
-                if (isCapturing && !hasDoc) {
-                    isCapturing = false;
-                    currentCaptureTabId = null;
-                }
 
                 sendResponse({
                     isActive: isActuallyActive,
@@ -376,18 +450,31 @@ async function handleMessage(message, sender, sendResponse) {
 
             case 'AUDIO_STARTED':
                 isCapturing = true;
+                if (message.tabId) currentCaptureTabId = message.tabId;
+                await chrome.storage.session.set({
+                    isCapturing: true,
+                    currentCaptureTabId: currentCaptureTabId,
+                    currentCaptureTabDomain: currentCaptureTabDomain
+                }).catch(() => {});
                 if (typeof sendResponse === 'function') sendResponse({ received: true });
                 break;
 
             case 'AUDIO_STOPPED':
+                if (message.tabId && message.tabId === currentCaptureTabId) {
+                    lastReloadedCapturedTabId = message.tabId;
+                }
                 isCapturing = false;
                 currentCaptureTabId = null;
+                currentCaptureTabDomain = null;
+                await chrome.storage.session.remove(['isCapturing', 'currentCaptureTabId', 'currentCaptureTabDomain']).catch(() => {});
                 if (typeof sendResponse === 'function') sendResponse({ received: true });
                 break;
 
             case 'AUDIO_ERROR':
                 isCapturing = false;
                 currentCaptureTabId = null;
+                currentCaptureTabDomain = null;
+                await chrome.storage.session.remove(['isCapturing', 'currentCaptureTabId', 'currentCaptureTabDomain']).catch(() => {});
                 console.error('[Audio EQ Pro v3.0] Audio error:', message.error);
                 if (typeof sendResponse === 'function') sendResponse({ received: true });
                 break;
@@ -409,6 +496,7 @@ async function handleMessage(message, sender, sendResponse) {
 
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
     try {
+        await syncCaptureState();
         const { masterEnabled } = await chrome.storage.local.get(['masterEnabled']);
         if (!masterEnabled) return;
 
@@ -465,6 +553,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 });
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
+    await syncCaptureState();
     if (tabId === currentCaptureTabId) {
         console.log('[Audio EQ Pro v3.0] Captured tab closed, stopping audio');
         await stopCapture();
@@ -472,6 +561,8 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+    await syncCaptureState();
+
     // 1. Forward title changes to offscreen AI classifier (for dynamic SPAs like YouTube/Spotify)
     if (tabId === currentCaptureTabId) {
         const titleToSend = changeInfo.title || (changeInfo.status === 'complete' && tab?.title ? tab.title : null);
@@ -486,17 +577,15 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
     // 2. Handle navigation on the captured tab
     if (tabId === currentCaptureTabId) {
-        const newDomain = tab?.url ? getDomain(tab.url) : null;
-
-        // If tab navigated away to another website/domain (e.g. YouTube -> Google)
-        if (newDomain && currentCaptureTabDomain && newDomain !== currentCaptureTabDomain) {
-            console.log('[Audio EQ Pro v3.0] Tab domain changed from', currentCaptureTabDomain, 'to', newDomain, '- stopping capture');
-            await stopCapture();
-            return;
-        }
-
-        // If it's an in-page SPA navigation (URL changed within the same domain, e.g. YouTube next video in playlist)
+        // Only if URL actually changed to a completely different domain
         if (changeInfo.url) {
+            const newDomain = getDomain(changeInfo.url);
+            if (newDomain && currentCaptureTabDomain && newDomain !== currentCaptureTabDomain) {
+                console.log('[Audio EQ Pro v3.0] Tab domain changed from', currentCaptureTabDomain, 'to', newDomain, '- stopping capture');
+                await stopCapture();
+                return;
+            }
+
             console.log('[Audio EQ Pro v3.0] SPA In-page navigation on same domain:', newDomain, '- maintaining active audio capture stream');
             // Re-fetch tab title after DOM title updates and notify offscreen classifier
             const notifyTitleChange = async () => {
@@ -515,25 +604,18 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
             setTimeout(notifyTitleChange, 1200);
             return;
         }
-
-        // If a real hard page reload begins (status: loading without SPA url change):
-        if (changeInfo.status === 'loading' && !changeInfo.url) {
-            console.log('[Audio EQ Pro v3.0] Hard page reload started on captured tab');
-            await stopCapture();
-            return;
-        }
     }
 
-    // 3. Auto-resume capture on completed reload if user left audio ON
+    // 3. Auto-resume capture on completed reload if user left audio ON and it was the reloaded captured tab
     if (changeInfo.status === 'complete' && tab && tab.url) {
         const urlLower = tab.url.toLowerCase();
         if (!urlLower.startsWith('http://') && !urlLower.startsWith('https://')) return;
         if (urlLower.includes('chrome.google.com/webstore') || urlLower.includes('chromewebstore.google.com')) return;
 
         const { masterEnabled } = await chrome.storage.local.get(['masterEnabled']);
-        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
-        if (masterEnabled && activeTab && activeTab.id === tabId && !isCapturing) {
-            console.log('[Audio EQ Pro v3.0] Auto-resuming capture for completed tab reload:', tabId);
+        if (masterEnabled && !isCapturing && lastReloadedCapturedTabId && tabId === lastReloadedCapturedTabId) {
+            console.log('[Audio EQ Pro v3.0] Auto-resuming capture for reloaded tab:', tabId);
+            lastReloadedCapturedTabId = null;
             await startCapture(tabId);
         }
     }
@@ -541,8 +623,10 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 // ===================== LIFECYCLE =====================
 
-chrome.runtime.onSuspend.addListener(async () => {
-    await closeOffscreenDocument();
+chrome.runtime.onSuspend.addListener(() => {
+    // In Manifest V3, the service worker goes to sleep after 30 seconds of inactivity to save RAM.
+    // The offscreen document MUST remain open to continue processing audio uninterrupted!
+    console.log('[Audio EQ Pro v3.0] Background service worker suspended (offscreen audio continues)');
 });
 
 chrome.runtime.onInstalled.addListener(() => {

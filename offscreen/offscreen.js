@@ -24,6 +24,23 @@ let currentTabId = null;
 let isInitializing = false;
 let abCompareActive = false;
 let autoClassifier = null;
+let audioWatchdogInterval = null;
+
+function startAudioWatchdog() {
+    if (audioWatchdogInterval) clearInterval(audioWatchdogInterval);
+    audioWatchdogInterval = setInterval(() => {
+        if (audioContext && audioContext.state === 'suspended') {
+            audioContext.resume().catch(() => {});
+        }
+    }, 1000);
+}
+
+function stopAudioWatchdog() {
+    if (audioWatchdogInterval) {
+        clearInterval(audioWatchdogInterval);
+        audioWatchdogInterval = null;
+    }
+}
 
 // Spatial audio nodes
 let spatialEnabled = false;
@@ -107,12 +124,14 @@ async function initAudioContext(streamId, tabId, title = '') {
             sampleRate: 48000
         });
 
-        // Ensure AudioContext automatically wakes up if temporarily suspended during video transitions
+        // Ensure AudioContext automatically wakes up if temporarily suspended during video transitions or tab focus changes
         audioContext.onstatechange = () => {
             if (audioContext && audioContext.state === 'suspended') {
                 audioContext.resume().catch(() => {});
             }
         };
+
+        startAudioWatchdog();
 
         // Source
         sourceNode = audioContext.createMediaStreamSource(mediaStream);
@@ -625,6 +644,8 @@ async function stopAudioProcessing(sendMessage = true) {
             audioContext = null;
         }
 
+        stopAudioWatchdog();
+
         if (autoClassifier) {
             autoClassifier.stop();
             autoClassifier = null;
@@ -1041,6 +1062,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 profile: profile,
                 bands: profile ? profile.bands : null,
                 metaMatched: autoClassifier ? Boolean(autoClassifier.lastMetaMatched) : false
+            });
+            break;
+        }
+
+        case 'GET_ENGINE_STATUS': {
+            const isAudioActive = Boolean(audioContext && audioContext.state !== 'closed');
+            sendResponse({
+                success: true,
+                isActive: isAudioActive,
+                tabId: currentTabId,
+                state: audioContext ? audioContext.state : 'none'
             });
             break;
         }
