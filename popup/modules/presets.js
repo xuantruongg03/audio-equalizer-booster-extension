@@ -27,72 +27,72 @@ export const PRESET_CATEGORIES = {
 export const PRESETS = {
     // === ZYNO SIGNATURE & BASIC ===
     'zyno-signature': {
-        name: '⚡ Zyno Studio Signature',
+        name: 'Zyno Studio Signature',
         category: 'basic',
-        icon: '⚡',
+        iconName: 'zap',
         desc: 'Chất âm độc quyền Zyno - bass sâu, mid ấm, treble lấp lánh',
         bands: { '32': 7, '64': 5, '125': 2, '250': 1, '500': 0, '1k': 2, '2k': 4, '4k': 5, '8k': 6, '16k': 7 }
     },
     'zyno-sub-bass': {
-        name: '🎧 Zyno Sub-Bass Club',
+        name: 'Zyno Sub-Bass Club',
         category: 'basic',
-        icon: '🎧',
+        iconName: 'headphones',
         desc: 'Tăng cường dải siêu trầm Zyno đánh căng tràn uy lực',
         bands: { '32': 11, '64': 9, '125': 5, '250': 2, '500': 0, '1k': 1, '2k': 2, '4k': 3, '8k': 4, '16k': 3 }
     },
     'flat': {
         name: 'Flat',
         category: 'basic',
-        icon: '⚖️',
+        iconName: 'equal',
         desc: 'Âm thanh nguyên bản studio cân bằng',
         bands: { '32': 0, '64': 0, '125': 0, '250': 0, '500': 0, '1k': 0, '2k': 0, '4k': 0, '8k': 0, '16k': 0 }
     },
     'bass-boost': {
         name: 'Bass Boost',
         category: 'basic',
-        icon: '🔊',
+        iconName: 'speaker',
         desc: 'Tăng cường âm trầm uy lực',
         bands: { '32': 10, '64': 8, '125': 6, '250': 4, '500': 2, '1k': 0, '2k': 0, '4k': 0, '8k': 0, '16k': 0 }
     },
     'bass-boost-extreme': {
         name: 'Bass Extreme',
         category: 'basic',
-        icon: '💥',
+        iconName: 'zap',
         desc: 'Bass rung chấn cực mạnh cho EDM, Trap',
         bands: { '32': 12, '64': 11, '125': 9, '250': 6, '500': 3, '1k': 0, '2k': -1, '4k': -1, '8k': 0, '16k': 1 }
     },
     'deep-bass-pro': {
         name: 'Deep Sub-Bass Pro',
         category: 'basic',
-        icon: '💣',
+        iconName: 'disc',
         desc: 'Tập trung sub-bass tần số siêu thấp',
         bands: { '32': 12, '64': 9, '125': 4, '250': 1, '500': 0, '1k': 0, '2k': 1, '4k': 2, '8k': 2, '16k': 2 }
     },
     'vocal-booster': {
         name: 'Vocal Booster',
         category: 'basic',
-        icon: '🎤',
+        iconName: 'mic',
         desc: 'Làm nổi bật giọng hát và ca sĩ',
         bands: { '32': -2, '64': -1, '125': 0, '250': 2, '500': 4, '1k': 6, '2k': 6, '4k': 4, '8k': 2, '16k': 0 }
     },
     'treble-booster': {
         name: 'Treble Boost',
         category: 'basic',
-        icon: '✨',
+        iconName: 'sparkles',
         desc: 'Tăng âm cao, tiếng gõ kim loại trong trẻo',
         bands: { '32': 0, '64': 0, '125': 0, '250': 0, '500': 2, '1k': 3, '2k': 5, '4k': 7, '8k': 9, '16k': 10 }
     },
     'loudness': {
         name: 'Loudness Contour',
         category: 'basic',
-        icon: '📢',
+        iconName: 'speaker',
         desc: 'Tăng bass và treble khi nghe volume nhỏ',
         bands: { '32': 8, '64': 6, '125': 3, '250': 0, '500': -2, '1k': 0, '2k': 2, '4k': 5, '8k': 7, '16k': 8 }
     },
     'crystal-clarity': {
         name: 'Crystal Clarity',
         category: 'basic',
-        icon: '💎',
+        iconName: 'sparkles',
         desc: 'Trong trẻo, giảm đục, nâng chi tiết',
         bands: { '32': -2, '64': 0, '125': -2, '250': -1, '500': 1, '1k': 3, '2k': 5, '4k': 6, '8k': 7, '16k': 8 }
     },
@@ -101,84 +101,84 @@ export const PRESETS = {
     'pop': {
         name: 'Pop',
         category: 'music',
-        icon: '🎵',
+        iconName: 'music',
         desc: 'Nhạc Pop hiện đại, vocal trong, bass nảy',
         bands: { '32': 2, '64': 3, '125': 3, '250': 1, '500': 0, '1k': 2, '2k': 3, '4k': 4, '8k': 4, '16k': 2 }
     },
     'rock': {
         name: 'Rock',
         category: 'music',
-        icon: '🎸',
+        iconName: 'flame',
         desc: 'Nhạc Rock, guitar điện và dàn trống rực lửa',
         bands: { '32': 4, '64': 5, '125': 3, '250': 2, '500': -1, '1k': 2, '2k': 4, '4k': 5, '8k': 6, '16k': 5 }
     },
     'hip-hop': {
         name: 'Hip-Hop / Rap',
         category: 'music',
-        icon: '🎧',
+        iconName: 'headphones',
         desc: '808 Bass căng tràn, lời rap sắc sảo',
         bands: { '32': 8, '64': 7, '125': 5, '250': 3, '500': 0, '1k': 2, '2k': 3, '4k': 2, '8k': 3, '16k': 2 }
     },
     'edm': {
         name: 'EDM / Dance',
         category: 'music',
-        icon: '🎛️',
+        iconName: 'disc',
         desc: 'Electronic Dance - Drop bass bùng nổ',
         bands: { '32': 10, '64': 8, '125': 5, '250': 2, '500': 0, '1k': -1, '2k': 1, '4k': 3, '8k': 5, '16k': 6 }
     },
     'jazz': {
         name: 'Jazz',
         category: 'music',
-        icon: '🎷',
+        iconName: 'music',
         desc: 'Jazz, kèn saxophone mượt mà & piano ấm',
         bands: { '32': 2, '64': 3, '125': 2, '250': 1, '500': -1, '1k': 0, '2k': 2, '4k': 4, '8k': 5, '16k': 4 }
     },
     'classical': {
         name: 'Classical',
         category: 'music',
-        icon: '🎻',
+        iconName: 'music',
         desc: 'Dàn nhạc giao hưởng thính phòng sống động',
         bands: { '32': 1, '64': 2, '125': 1, '250': 0, '500': -1, '1k': 0, '2k': 1, '4k': 3, '8k': 4, '16k': 5 }
     },
     'rnb': {
         name: 'R&B / Soul',
         category: 'music',
-        icon: '💜',
+        iconName: 'music',
         desc: 'Âm thanh trầm ấm, giọng ca ngọt ngào',
         bands: { '32': 5, '64': 5, '125': 4, '250': 2, '500': 0, '1k': 2, '2k': 4, '4k': 3, '8k': 2, '16k': 1 }
     },
     'acoustic': {
         name: 'Acoustic / Unplugged',
         category: 'music',
-        icon: '🪕',
+        iconName: 'music',
         desc: 'Guitar mộc, bộ gõ nhẹ và vocal chân thực',
         bands: { '32': 1, '64': 2, '125': 3, '250': 2, '500': 1, '1k': 3, '2k': 4, '4k': 4, '8k': 3, '16k': 2 }
     },
     'metal': {
         name: 'Heavy Metal',
         category: 'music',
-        icon: '🤘',
+        iconName: 'flame',
         desc: 'Riff distortion dày dặn, double pedal uy lực',
         bands: { '32': 6, '64': 5, '125': 3, '250': 0, '500': -3, '1k': 2, '2k': 4, '4k': 6, '8k': 7, '16k': 5 }
     },
     'kpop': {
         name: 'K-Pop',
         category: 'music',
-        icon: '🇰🇷',
+        iconName: 'mic',
         desc: 'Vocal sáng rõ nét, beat sôi động catchy',
         bands: { '32': 4, '64': 5, '125': 3, '250': 1, '500': 0, '1k': 3, '2k': 5, '4k': 5, '8k': 5, '16k': 4 }
     },
     'lofi': {
         name: 'Lo-Fi Chill',
         category: 'music',
-        icon: '📻',
+        iconName: 'radio',
         desc: 'Vintage ấm áp, êm dịu thư giãn',
         bands: { '32': 4, '64': 5, '125': 4, '250': 2, '500': 1, '1k': 0, '2k': -1, '4k': -2, '8k': -3, '16k': -2 }
     },
     'live-concert': {
         name: 'Live Concert',
         category: 'music',
-        icon: '🏟️',
+        iconName: 'landmark',
         desc: 'Cảm giác như đang đứng trước sân khấu lớn',
         bands: { '32': 5, '64': 6, '125': 4, '250': 1, '500': 0, '1k': 2, '2k': 4, '4k': 5, '8k': 6, '16k': 7 }
     },
@@ -187,63 +187,63 @@ export const PRESETS = {
     'dialogue': {
         name: 'Dialogue Clarity',
         category: 'situation',
-        icon: '💬',
+        iconName: 'mic',
         desc: 'Làm nổi bật lời thoại trong phim tài liệu & video',
         bands: { '32': -4, '64': -3, '125': -1, '250': 2, '500': 4, '1k': 6, '2k': 7, '4k': 5, '8k': 2, '16k': 0 }
     },
     'movie': {
         name: 'Movie / Cinema',
         category: 'situation',
-        icon: '🎬',
+        iconName: 'film',
         desc: 'Xem phim bom tấn - hiệu ứng cháy nổ & lời thoại rõ',
         bands: { '32': 6, '64': 5, '125': 3, '250': 0, '500': 1, '1k': 3, '2k': 4, '4k': 4, '8k': 5, '16k': 4 }
     },
     'cinema-immersion': {
         name: 'Cinema Immersion 3D',
         category: 'situation',
-        icon: '🍿',
+        iconName: 'film',
         desc: 'Trải nghiệm rạp chiếu phim vòm đỉnh cao',
         bands: { '32': 7, '64': 6, '125': 3, '250': 1, '500': 0, '1k': 2, '2k': 4, '4k': 6, '8k': 6, '16k': 5 }
     },
     'gaming': {
         name: 'Gaming Pro',
         category: 'situation',
-        icon: '🎮',
+        iconName: 'activity',
         desc: 'Nghe rõ tiếng bước chân (footsteps) và tiếng súng',
         bands: { '32': 5, '64': 6, '125': 3, '250': 0, '500': -2, '1k': 1, '2k': 4, '4k': 6, '8k': 6, '16k': 5 }
     },
     'podcast': {
         name: 'Podcast & Audiobooks',
         category: 'situation',
-        icon: '🎙️',
+        iconName: 'mic',
         desc: 'Tối ưu độ trong trẻo cho giọng dẫn chương trình',
         bands: { '32': -5, '64': -3, '125': -1, '250': 2, '500': 4, '1k': 5, '2k': 5, '4k': 4, '8k': 2, '16k': 0 }
     },
     'meeting': {
         name: 'Video Meeting',
         category: 'situation',
-        icon: '💼',
+        iconName: 'box',
         desc: 'Khử ồn trầm & tăng âm rõ cho Google Meet, Zoom',
         bands: { '32': -6, '64': -4, '125': -2, '250': 1, '500': 3, '1k': 5, '2k': 6, '4k': 5, '8k': 3, '16k': 1 }
     },
     'night': {
         name: 'Night Mode',
         category: 'situation',
-        icon: '🌙',
+        iconName: 'activity',
         desc: 'Nghe đêm khuya - cắt bass mạnh, âm dịu không chói tai',
         bands: { '32': -4, '64': -3, '125': -1, '250': 0, '500': 1, '1k': 2, '2k': 2, '4k': 1, '8k': 0, '16k': -1 }
     },
     'study': {
         name: 'Study / Focus',
         category: 'situation',
-        icon: '📚',
+        iconName: 'box',
         desc: 'Âm thanh êm dịu, không gây mệt mỏi tai khi học tập',
         bands: { '32': -2, '64': -1, '125': 0, '250': 1, '500': 2, '1k': 2, '2k': 1, '4k': 0, '8k': -1, '16k': -2 }
     },
     'asmr-relax': {
         name: 'ASMR & Relax',
         category: 'situation',
-        icon: '🍃',
+        iconName: 'waves',
         desc: 'Tăng chi tiết thì thầm & âm thanh vi mô tinh tế',
         bands: { '32': -4, '64': -2, '125': 0, '250': 1, '500': 2, '1k': 4, '2k': 6, '4k': 7, '8k': 8, '16k': 8 }
     },
@@ -252,28 +252,28 @@ export const PRESETS = {
     'laptop': {
         name: 'Laptop Small Speakers',
         category: 'device',
-        icon: '💻',
+        iconName: 'box',
         desc: 'Bù âm trầm & hạn chế rè loa cho laptop',
         bands: { '32': 7, '64': 6, '125': 4, '250': 2, '500': 0, '1k': 1, '2k': 2, '4k': 3, '8k': 2, '16k': 1 }
     },
     'headphone': {
         name: 'Over-Ear Headphones',
         category: 'device',
-        icon: '🎧',
+        iconName: 'headphones',
         desc: 'Âm thanh chuẩn audiophile cho tai nghe trùm đầu',
         bands: { '32': 3, '64': 4, '125': 3, '250': 1, '500': 0, '1k': 1, '2k': 2, '4k': 3, '8k': 3, '16k': 2 }
     },
     'earbuds': {
         name: 'In-Ear / AirPods',
         category: 'device',
-        icon: '👂',
+        iconName: 'headphones',
         desc: 'Tối ưu độ cân bằng cho tai nghe nhét tai nhỏ',
         bands: { '32': 5, '64': 5, '125': 4, '250': 2, '500': 0, '1k': 1, '2k': 2, '4k': 3, '8k': 2, '16k': 1 }
     },
     'bluetooth': {
         name: 'Bluetooth Speaker',
         category: 'device',
-        icon: '📱',
+        iconName: 'speaker',
         desc: 'Tăng cường chất âm cho loa bluetooth di động',
         bands: { '32': 6, '64': 5, '125': 4, '250': 2, '500': 0, '1k': 1, '2k': 2, '4k': 3, '8k': 4, '16k': 3 }
     }

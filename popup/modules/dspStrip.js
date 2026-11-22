@@ -1,10 +1,11 @@
 // Studio DSP Channel Strip & Parametric Inspector v3.0 Pro
 // Master Pan, Mono Mode, Preamp Gain, Band Q, Filter Types
+import { icon } from './icons.js';
 
 export const FILTER_TYPES = [
-    { key: 'peaking', name: 'Bell (Peaking)', icon: '🔔' },
-    { key: 'lowshelf', name: 'Low Shelf', icon: '📉' },
-    { key: 'highshelf', name: 'High Shelf', icon: '📈' }
+    { key: 'peaking', name: 'Bell (Peaking)', iconName: 'bell' },
+    { key: 'lowshelf', name: 'Low Shelf', iconName: 'trending-down' },
+    { key: 'highshelf', name: 'High Shelf', iconName: 'trending-up' }
 ];
 
 export const EQ_RANGES = [6, 12, 24];
@@ -56,7 +57,7 @@ export function createDspStrip(options = {}) {
 
             <!-- Mono Button -->
             <button class="dsp-mono-btn ${mono ? 'active' : ''}" id="dspMonoBtn" title="Gộp kênh Mono / Stereo">
-                <span class="mono-icon">📻</span>
+                <span class="mono-icon">${icon('radio', 13)}</span>
                 <span class="mono-text">${mono ? 'Mono' : 'Stereo'}</span>
             </button>
 
@@ -99,7 +100,7 @@ export function createDspStrip(options = {}) {
                         <span class="dsp-title">Filter Type</span>
                     </div>
                     <select class="inspector-select" id="inspectorFilterType">
-                        ${FILTER_TYPES.map(ft => `<option value="${ft.key}">${ft.icon} ${ft.name}</option>`).join('')}
+                        ${FILTER_TYPES.map(ft => `<option value="${ft.key}">${ft.name}</option>`).join('')}
                     </select>
                 </div>
             </div>
@@ -219,6 +220,11 @@ export function createDspStrip(options = {}) {
             currentMono = vals.mono;
             monoBtn.classList.toggle('active', currentMono);
             monoBtn.querySelector('.mono-text').textContent = currentMono ? 'Mono' : 'Stereo';
+        }
+        if (vals.range !== undefined) {
+            rangePills.forEach(p => {
+                p.classList.toggle('active', parseInt(p.dataset.range) === vals.range);
+            });
         }
     };
 

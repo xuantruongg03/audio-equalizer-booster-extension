@@ -25,6 +25,9 @@ let isInitializing = false;
 let abCompareActive = false;
 let autoClassifier = null;
 let audioWatchdogInterval = null;
+let currentAudioVolume = 100;
+let currentAudioBoostEnabled = false;
+let currentAudioBoostMultiplier = 2.0;
 
 function startAudioWatchdog() {
     if (audioWatchdogInterval) clearInterval(audioWatchdogInterval);
@@ -293,8 +296,17 @@ function createReverbNodes() {
 
 function updateReverbType(type) {
     reverbType = type;
-    if (convolverNode && audioContext) {
+    if (!audioContext || !reverbInputSplit || !reverbWetGain) return;
+    try {
+        if (convolverNode) {
+            try { convolverNode.disconnect(); } catch (e) {}
+        }
+        convolverNode = audioContext.createConvolver();
         convolverNode.buffer = generateImpulseResponse(type);
+        reverbInputSplit.connect(convolverNode);
+        convolverNode.connect(reverbWetGain);
+    } catch (e) {
+        console.error('[Audio EQ Pro v3.0] Error updating reverb convolver:', e);
     }
 }
 
@@ -632,7 +644,11 @@ async function stopAudioProcessing(sendMessage = true) {
         sourceAnalyserNode = null;
         eqFilters.forEach(f => { try { f.disconnect(); } catch (e) { } });
         eqFilters = [];
-        preampGainNode = stereoPannerNode = null;
+        sourceNode = preampGainNode = gainNode = compressorNode = limiterNode = analyserNode = stereoPannerNode = null;
+        splitterNode = mergerNode = leftDelayNode = rightDelayNode = leftGainNode = rightGainNode = crossFeedL = crossFeedR = null;
+        autoPanNode = autoPanLFO = autoPanLFOGain = null;
+        convolverNode = reverbDryGain = reverbWetGain = reverbInputSplit = reverbOutputMerge = null;
+        bassFilterNode = bassShaperNode = bassGainNode = bassInputSplit = bassOutputMerge = null;
 
         if (mediaStream) {
             mediaStream.getTracks().forEach(track => track.stop());
@@ -694,10 +710,14 @@ function applySettings(settings) {
     }
 
     // Volume (0-100%, with optional Boost multiplier)
-    if (gainNode && settings.volume !== undefined) {
-        let gainValue = Math.min(100, Math.max(0, settings.volume)) / 100;
-        if (settings.boostEnabled) {
-            const multiplier = settings.boostMultiplier || 2.0;
+    if (settings.volume !== undefined) currentAudioVolume = settings.volume;
+    if (settings.boostEnabled !== undefined) currentAudioBoostEnabled = !!settings.boostEnabled;
+    if (settings.boostMultiplier !== undefined) currentAudioBoostMultiplier = settings.boostMultiplier;
+
+    if (gainNode && (settings.volume !== undefined || settings.boostEnabled !== undefined || settings.boostMultiplier !== undefined)) {
+        let gainValue = Math.min(100, Math.max(0, currentAudioVolume)) / 100;
+        if (currentAudioBoostEnabled) {
+            const multiplier = currentAudioBoostMultiplier || 2.0;
             gainValue *= multiplier;
         }
         gainNode.gain.cancelScheduledValues(ct);

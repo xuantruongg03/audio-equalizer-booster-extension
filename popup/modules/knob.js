@@ -49,7 +49,7 @@ export function createKnob(options = {}) {
     const onStart = (e) => {
         e.preventDefault();
         isDragging = true;
-        startY = e.clientY || e.touches[0].clientY;
+        startY = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
         startValue = parseFloat(knobEl.dataset.value);
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onEnd);
@@ -62,7 +62,7 @@ export function createKnob(options = {}) {
         if (!isDragging) return;
         e.preventDefault();
 
-        const currentY = e.clientY || e.touches[0].clientY;
+        const currentY = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
         const deltaY = startY - currentY; // Up = positive
         const sensitivity = 0.3; // Adjust sensitivity
         const range = max - min;
@@ -221,7 +221,7 @@ export function createVolumeKnob(options = {}) {
     const onStart = (e) => {
         e.preventDefault();
         isDragging = true;
-        startY = e.clientY || e.touches[0].clientY;
+        startY = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
         startValue = parseFloat(knobEl.dataset.value);
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onEnd);
@@ -234,7 +234,7 @@ export function createVolumeKnob(options = {}) {
         if (!isDragging) return;
         e.preventDefault();
 
-        const currentY = e.clientY || e.touches[0].clientY;
+        const currentY = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
         const deltaY = startY - currentY;
         const sensitivity = 2;
         const deltaValue = Math.round(deltaY * sensitivity);

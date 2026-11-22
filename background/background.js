@@ -256,7 +256,9 @@ async function startCapture(tabId) {
                         preamp: finalSettings.preamp || 0,
                         pan: finalSettings.pan || 0,
                         mono: !!finalSettings.mono,
-                        bandParams: finalSettings.bandParams || {}
+                        bandParams: finalSettings.bandParams || {},
+                        boostEnabled: !!finalSettings.boostEnabled,
+                        boostMultiplier: finalSettings.boostMultiplier || 2.0
                     }
                 });
             } catch (e) {}
@@ -544,7 +546,9 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
                         preamp: siteConf.preamp ?? settings?.preamp ?? 0,
                         pan: siteConf.pan ?? settings?.pan ?? 0,
                         mono: !!siteConf.mono,
-                        bandParams: siteConf.bandParams || {}
+                        bandParams: siteConf.bandParams || {},
+                        boostEnabled: siteConf.boostEnabled !== undefined ? !!siteConf.boostEnabled : !!settings?.boostEnabled,
+                        boostMultiplier: siteConf.boostMultiplier || settings?.boostMultiplier || 2.0
                     }
                 });
             }

@@ -1,6 +1,7 @@
 // Site Settings Module
 // Per-site/per-tab audio profile management
 import { STORAGE_KEYS, SITE_SETTINGS_DEFAULT_CONFIG } from '../../constant.js';
+import { icon } from './icons.js';
 
 /**
  * Extract domain from URL
@@ -91,6 +92,13 @@ export class SiteSettingsManager {
     }
 
     /**
+     * Alias for getForSite for backwards compatibility
+     */
+    getSiteSettings(domain) {
+        return this.getForSite(domain);
+    }
+
+    /**
      * Save settings for a specific site
      */
     async saveForSite(domain, settings) {
@@ -106,6 +114,8 @@ export class SiteSettingsManager {
             mono: !!settings.mono,
             range: settings.range || 12,
             bandParams: settings.bandParams ? { ...settings.bandParams } : {},
+            boostEnabled: !!settings.boostEnabled,
+            boostMultiplier: settings.boostMultiplier || 2.0,
             enabled: settings.enabled !== undefined ? settings.enabled : true,
             savedAt: Date.now()
         };
@@ -182,7 +192,7 @@ export function createSiteSettingsPanel(manager, currentDomain, currentSettings,
                 <img class="site-favicon" src="https://www.google.com/s2/favicons?domain=${currentDomain}&sz=32" />
                 <div class="site-details">
                     <span class="site-domain">${currentDomain || 'Unknown'}</span>
-                    <span class="site-status">${hasSaved ? '✅ Đã lưu cài đặt' : '📝 Chưa lưu'}</span>
+                    <span class="site-status">${hasSaved ? `${icon('check-circle-2', 12)} Đã lưu cài đặt` : `${icon('file-edit', 12)} Chưa lưu`}</span>
                 </div>
             </div>
             <div class="site-actions">
@@ -207,7 +217,7 @@ export function createSiteSettingsPanel(manager, currentDomain, currentSettings,
         
         ${recommendation && !hasSaved ? `
             <div class="site-recommendation">
-                <span class="rec-icon">💡</span>
+                <span class="rec-icon">${icon('lightbulb', 13)}</span>
                 <span class="rec-text">Gợi ý: <strong>${recommendation.preset}</strong> - ${recommendation.desc}</span>
                 <button class="btn-apply-rec">Áp dụng</button>
             </div>
@@ -249,7 +259,7 @@ export function createSiteSettingsPanel(manager, currentDomain, currentSettings,
         saveBtn.addEventListener('click', () => {
             onSave(currentDomain, currentSettings);
             // Update UI
-            panel.querySelector('.site-status').textContent = '✅ Đã lưu cài đặt';
+            panel.querySelector('.site-status').innerHTML = `${icon('check-circle-2', 12)} Đã lưu cài đặt`;
         });
     }
 
@@ -294,7 +304,7 @@ export function createSavedSitesList(manager, onSelect, onRemove) {
     if (sites.length === 0) {
         list.innerHTML = `
             <div class="no-sites">
-                <span>📭</span>
+                <span class="empty-icon">${icon('inbox', 26)}</span>
                 <p>Chưa có site nào được lưu</p>
             </div>
         `;
@@ -303,7 +313,7 @@ export function createSavedSitesList(manager, onSelect, onRemove) {
 
     list.innerHTML = `
         <div class="sites-header">
-            <span>📁 Sites đã lưu (${sites.length})</span>
+            <span>${icon('globe', 13)} Sites đã lưu (${sites.length})</span>
         </div>
         <div class="sites-items">
             ${sites.map(site => `
@@ -312,7 +322,7 @@ export function createSavedSitesList(manager, onSelect, onRemove) {
                          src="https://www.google.com/s2/favicons?domain=${site.domain}&sz=16" />
                     <span class="site-item-domain">${site.domain}</span>
                     <span class="site-item-preset">${site.preset}</span>
-                    <button class="site-item-remove" data-domain="${site.domain}">×</button>
+                    <button class="site-item-remove" data-domain="${site.domain}" title="Xóa cài đặt">${icon('trash-2', 12)}</button>
                 </div>
             `).join('')}
         </div>

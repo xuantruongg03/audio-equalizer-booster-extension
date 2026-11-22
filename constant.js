@@ -103,7 +103,7 @@ export const AI_GENRE_PROFILES = {
     'drill': {
         id: 'drill',
         name: 'Drill & 808 Trap',
-        icon: '💣',
+        iconName: 'zap',
         desc: 'Sub-bass 808 siêu sâu (+9dB), dải treble hi-hat sắc bén (+7dB), gọt sạch dải low-mid chống đục',
         bands: { '32': 9, '64': 8, '125': 3, '250': -3, '500': -1, '1k': 1, '2k': 3, '4k': 4, '8k': 6, '16k': 7 },
         effects: {
@@ -115,7 +115,7 @@ export const AI_GENRE_PROFILES = {
     'edm_remix': {
         id: 'edm_remix',
         name: 'EDM & Vinahouse Remix',
-        icon: '🎛️',
+        iconName: 'disc',
         desc: 'Kick nảy tức thì (+9dB), V-shape scoop mở rộng âm trường, treble sáng bừng (+8dB)',
         bands: { '32': 7, '64': 9, '125': 6, '250': 0, '500': -4, '1k': -1, '2k': 3, '4k': 6, '8k': 8, '16k': 8 },
         effects: {
@@ -127,7 +127,7 @@ export const AI_GENRE_PROFILES = {
     'bass_boost': {
         id: 'bass_boost',
         name: 'Super Bass Boosted',
-        icon: '🔊',
+        iconName: 'speaker',
         desc: 'Tăng cường cực đại dải trầm (+12dB), rung chuyển màng loa, dày dặn và uy lực',
         bands: { '32': 12, '64': 10, '125': 7, '250': 3, '500': 0, '1k': 0, '2k': 1, '4k': 2, '8k': 3, '16k': 3 },
         effects: {
@@ -138,7 +138,7 @@ export const AI_GENRE_PROFILES = {
     'kpop_vpop': {
         id: 'kpop_vpop',
         name: 'K-Pop & V-Pop Vocal',
-        icon: '🎤',
+        iconName: 'mic',
         desc: 'Nâng giọng ca sĩ rõ nét (+7dB Presence), bass đập dứt khoát (+5dB), âm sắc trong suốt',
         bands: { '32': 3, '64': 5, '125': 3, '250': -2, '500': 1, '1k': 5, '2k': 7, '4k': 6, '8k': 5, '16k': 4 },
         effects: {
@@ -151,7 +151,7 @@ export const AI_GENRE_PROFILES = {
     'acoustic_ballad': {
         id: 'acoustic_ballad',
         name: 'Acoustic & Ballad Chill',
-        icon: '🎸',
+        iconName: 'music',
         desc: 'Mộc mạc ấm áp (+5dB dải mid-trầm), hòa âm phòng hòa nhạc mượt mà, thư thái',
         bands: { '32': -2, '64': 2, '125': 5, '250': 5, '500': 4, '1k': 3, '2k': 4, '4k': 3, '8k': 2, '16k': 1 },
         effects: {
@@ -163,7 +163,7 @@ export const AI_GENRE_PROFILES = {
     'rock_metal': {
         id: 'rock_metal',
         name: 'Rock & Heavy Metal',
-        icon: '🤘',
+        iconName: 'flame',
         desc: 'Guitar điện distortion uy lực (+7dB), snare đanh chắc, kick xuyên phá',
         bands: { '32': 6, '64': 7, '125': 4, '250': 1, '500': -3, '1k': 3, '2k': 6, '4k': 7, '8k': 8, '16k': 7 },
         effects: {
@@ -173,7 +173,7 @@ export const AI_GENRE_PROFILES = {
     'cinema_podcast': {
         id: 'cinema_podcast',
         name: 'Cinema & Podcast',
-        icon: '🎬',
+        iconName: 'film',
         desc: 'Tăng cường hội thoại siêu rõ nét (+8dB Dialogue), lọc sạch tạp âm ù nền',
         bands: { '32': -6, '64': -4, '125': 0, '250': 2, '500': 6, '1k': 8, '2k': 8, '4k': 6, '8k': 3, '16k': 0 },
         effects: {

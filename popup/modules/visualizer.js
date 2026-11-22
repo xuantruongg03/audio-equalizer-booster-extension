@@ -1,15 +1,16 @@
 // Audio Visualizer Module v3.0 Pro
 // Realtime Logarithmic Spectrum Analyzer, Peak Level Meter, Liquid Oscilloscope & Circular Visualizer
+import { icon } from './icons.js';
 
 /**
  * Visualizer modes
  */
 export const VISUALIZER_MODES = {
-    'off': { name: 'Tắt', icon: '❌' },
-    'bars': { name: 'Bars', icon: '📊' },
-    'spectrum': { name: 'Spectrum', icon: '📈' },
-    'wave': { name: 'Wave', icon: '🌊' },
-    'circle': { name: 'Circle', icon: '⭕' }
+    'off': { name: 'Tắt', iconName: 'power' },
+    'bars': { name: 'Bars', iconName: 'bar-chart-2' },
+    'spectrum': { name: 'Spectrum', iconName: 'activity' },
+    'wave': { name: 'Wave', iconName: 'waves' },
+    'circle': { name: 'Circle', iconName: 'circle-dot' }
 };
 
 /**
@@ -27,12 +28,12 @@ export function createVisualizer(options = {}) {
     container.className = 'visualizer-container';
     container.innerHTML = `
         <div class="visualizer-header">
-            <span class="visualizer-title">🎵 Studio Visualizer</span>
+            <span class="visualizer-title">${icon('music', 13)} Studio Visualizer</span>
             <div class="visualizer-modes">
                 ${Object.entries(VISUALIZER_MODES).map(([key, m]) => `
                     <button class="viz-mode-btn ${key === mode ? 'active' : ''}" 
                             data-mode="${key}" title="${m.name}">
-                        ${m.icon}
+                        ${icon(m.iconName, 12)}
                     </button>
                 `).join('')}
             </div>
@@ -40,7 +41,7 @@ export function createVisualizer(options = {}) {
         <div class="visualizer-canvas-wrap">
             <canvas class="visualizer-canvas" width="${width}" height="${height}"></canvas>
             <div class="visualizer-idle">
-                <span>🔇 Đang chờ tín hiệu âm thanh...</span>
+                <span>${icon('volume-x', 14)} Đang chờ tín hiệu âm thanh...</span>
             </div>
         </div>
         <!-- Frequency Scale Markers (Matched to 10-Band EQ) -->

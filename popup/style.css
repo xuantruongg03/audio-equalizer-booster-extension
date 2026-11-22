@@ -22,6 +22,28 @@
   box-sizing: border-box;
 }
 
+/* Base button reset & color inheritance */
+button {
+  font-family: inherit;
+  color: var(--text-main);
+  background: transparent;
+  border: none;
+  outline: none;
+}
+
+/* Vector SVG Icon System */
+.svg-icon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  color: inherit;
+}
+
 html {
   width: 480px;
   background: #040817;
@@ -554,6 +576,10 @@ input:checked + .slider:before {
 
 .tab-btn {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 7px 10px;
   background: transparent;
   border: none;
@@ -628,7 +654,20 @@ input:checked + .slider:before {
   color: var(--zyno-cyan);
 }
 
-.vol-icon { font-size: 15px; }
+.vol-icon { 
+  font-size: 15px; 
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--zyno-cyan);
+}
+
+.boost-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
 
 .volume-header-right {
   display: flex;
@@ -647,7 +686,7 @@ input:checked + .slider:before {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #64748b;
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
@@ -874,6 +913,9 @@ input:checked + .slider:before {
 }
 
 .btn-view-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 7px;
   font-size: 9.5px;
   font-weight: 700;
@@ -898,6 +940,9 @@ input:checked + .slider:before {
 }
 
 .btn-flat-eq {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   background: rgba(0, 240, 220, 0.08);
   border: 1px solid rgba(0, 240, 220, 0.2);
   border-radius: 6px;
@@ -1035,27 +1080,31 @@ input:checked + .slider:before {
 }
 
 .viz-mode-btn {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: 1px solid rgba(0, 240, 220, 0.15);
+  background: rgba(0, 240, 220, 0.05);
+  border: 1px solid rgba(0, 240, 220, 0.18);
   border-radius: 4px;
   font-size: 9.5px;
+  color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .viz-mode-btn:hover {
-  background: rgba(0, 240, 220, 0.15);
+  background: rgba(0, 240, 220, 0.18);
+  border-color: rgba(0, 240, 220, 0.45);
+  color: #ffffff;
 }
 
 .viz-mode-btn.active {
-  background: rgba(0, 240, 220, 0.3);
+  background: rgba(0, 240, 220, 0.28);
   border-color: var(--zyno-cyan);
-  box-shadow: 0 0 8px var(--zyno-cyan-glow);
+  color: var(--zyno-cyan);
+  box-shadow: 0 0 10px var(--zyno-cyan-glow);
 }
 
 .visualizer-canvas-wrap {
@@ -1212,6 +1261,10 @@ input:checked + .slider:before {
   box-shadow: 0 0 10px var(--zyno-cyan-glow);
 }
 
+.reverb-type-btn.active .svg-icon {
+  color: var(--zyno-cyan);
+}
+
 /* Spatial Modes Grid */
 .spatial-modes {
   display: grid;
@@ -1245,6 +1298,10 @@ input:checked + .slider:before {
   border-color: var(--zyno-cyan);
   color: #fff;
   box-shadow: 0 0 8px var(--zyno-cyan-glow);
+}
+
+.spatial-mode-btn.active .svg-icon {
+  color: var(--zyno-cyan);
 }
 
 /* Sliders */
@@ -1440,19 +1497,30 @@ input:checked + .slider:before {
   font-size: 12px;
 }
 
+.preset-item-star {
+  display: inline-flex;
+  align-items: center;
+  color: #fbbf24;
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.45));
+}
+
 .preset-item-delete {
   background: none;
   border: none;
   color: #f87171;
   font-size: 15px;
   cursor: pointer;
-  opacity: 0.6;
-  transition: opacity 0.2s, transform 0.2s;
+  opacity: 0.65;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s, color 0.2s, transform 0.2s;
 }
 
 .preset-item-delete:hover {
   opacity: 1;
-  transform: scale(1.2);
+  color: #ef4444;
+  transform: scale(1.15);
 }
 
 .no-presets {
@@ -1756,10 +1824,46 @@ kbd {
   color: #f87171;
   font-size: 14px;
   cursor: pointer;
-  opacity: 0.6;
+  opacity: 0.65;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s, color 0.2s, transform 0.2s;
 }
 
-.site-item-remove:hover { opacity: 1; }
+.site-item-remove:hover { 
+  opacity: 1; 
+  color: #ef4444;
+  transform: scale(1.15);
+}
+
+.empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  opacity: 0.6;
+  margin-bottom: 6px;
+}
+
+.rec-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fbbf24;
+}
+
+.site-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9.5px;
+  color: var(--text-muted);
+}
+
+.site-status .svg-icon {
+  color: var(--accent-green);
+}
 
 /* ===================== STUDIO DSP FREQUENCY RESPONSE GRAPH ===================== */
 .dsp-graph-section {

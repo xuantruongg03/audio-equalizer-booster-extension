@@ -1,5 +1,6 @@
 // Audio Effects Module v3.0 Pro
 // Limiter, Spatial Audio, 7D Auto-Pan, Studio Reverb, Bass Enhancer
+import { icon } from './icons.js';
 
 /**
  * Default effect settings v3.0
@@ -64,11 +65,11 @@ export const LIMITER_PRESETS = {
  * Spatial audio modes
  */
 export const SPATIAL_MODES = {
-    'off': { name: 'Tắt', icon: '🔇' },
-    'wide': { name: 'Wide', icon: '↔️' },
-    'surround': { name: 'Surround', icon: '🔊' },
-    '3d': { name: '3D', icon: '🌐' },
-    '7d': { name: '7D', icon: '🎧' }
+    'off': { name: 'Tắt', iconName: 'volume-x' },
+    'wide': { name: 'Wide', iconName: 'move-horizontal' },
+    'surround': { name: 'Surround', iconName: 'speaker' },
+    '3d': { name: '3D', iconName: 'globe' },
+    '7d': { name: '7D', iconName: 'headphones' }
 };
 
 /**
@@ -84,10 +85,10 @@ export const PAN_SPEEDS = {
  * Reverb types
  */
 export const REVERB_TYPES = {
-    'room': { name: 'Phòng nhỏ (Room)', icon: '🚪' },
-    'hall': { name: 'Khán phòng (Concert Hall)', icon: '🏛️' },
-    'plate': { name: 'Plate Reverb', icon: '💿' },
-    'cathedral': { name: 'Đại giáo đường (Cathedral)', icon: '⛪' }
+    'room': { name: 'Phòng nhỏ (Room)', iconName: 'box' },
+    'hall': { name: 'Khán phòng (Concert Hall)', iconName: 'landmark' },
+    'plate': { name: 'Plate Reverb', iconName: 'disc' },
+    'cathedral': { name: 'Đại giáo đường (Cathedral)', iconName: 'castle' }
 };
 
 /**
@@ -108,7 +109,7 @@ export function createEffectsPanel(currentEffects, onChange) {
         <div class="effect-section">
             <div class="effect-header">
                 <div class="effect-info">
-                    <span class="effect-icon">🏛️</span>
+                    <span class="effect-icon">${icon('landmark', 15)}</span>
                     <span class="effect-name">Studio Reverb</span>
                 </div>
                 <label class="switch-small">
@@ -122,7 +123,7 @@ export function createEffectsPanel(currentEffects, onChange) {
                     ${Object.entries(REVERB_TYPES).map(([key, item]) => `
                         <button class="reverb-type-btn ${key === effects.reverb.type ? 'active' : ''}" 
                                 data-reverb="${key}">
-                            <span>${item.icon}</span>
+                            <span>${icon(item.iconName, 13)}</span>
                             <span>${item.name}</span>
                         </button>
                     `).join('')}
@@ -138,7 +139,7 @@ export function createEffectsPanel(currentEffects, onChange) {
         <div class="effect-section">
             <div class="effect-header">
                 <div class="effect-info">
-                    <span class="effect-icon">💥</span>
+                    <span class="effect-icon">${icon('flame', 15)}</span>
                     <span class="effect-name">Sub Bass Enhancer</span>
                 </div>
                 <label class="switch-small">
@@ -163,7 +164,7 @@ export function createEffectsPanel(currentEffects, onChange) {
         <div class="effect-section">
             <div class="effect-header">
                 <div class="effect-info">
-                    <span class="effect-icon">🎧</span>
+                    <span class="effect-icon">${icon('headphones', 15)}</span>
                     <span class="effect-name">Spatial Audio</span>
                 </div>
                 <label class="switch-small">
@@ -177,7 +178,7 @@ export function createEffectsPanel(currentEffects, onChange) {
                     ${Object.entries(SPATIAL_MODES).slice(1).map(([key, mode]) => `
                         <button class="spatial-mode-btn ${key === effects.spatial.mode ? 'active' : ''}" 
                                 data-mode="${key}" title="${mode.name}">
-                            <span>${mode.icon}</span>
+                            <span>${icon(mode.iconName, 13)}</span>
                             <span>${mode.name}</span>
                         </button>
                     `).join('')}
@@ -193,7 +194,7 @@ export function createEffectsPanel(currentEffects, onChange) {
         <div class="effect-section">
             <div class="effect-header">
                 <div class="effect-info">
-                    <span class="effect-icon">🔄</span>
+                    <span class="effect-icon">${icon('refresh-cw', 15)}</span>
                     <span class="effect-name">7D Auto-Pan</span>
                 </div>
                 <label class="switch-small">
@@ -221,7 +222,7 @@ export function createEffectsPanel(currentEffects, onChange) {
         <div class="effect-section">
             <div class="effect-header">
                 <div class="effect-info">
-                    <span class="effect-icon">🎚️</span>
+                    <span class="effect-icon">${icon('shield-check', 15)}</span>
                     <span class="effect-name">Audio Limiter / Compressor</span>
                 </div>
                 <label class="switch-small">

@@ -70,10 +70,10 @@
         </div>
         <div class="site-profile-actions">
           <button class="btn-site-profile" id="siteProfileBtn" title="Chuyển đổi hoặc lưu cấu hình riêng cho website này">
-            <span class="site-profile-icon" id="siteProfileIcon">🌐</span>
+            <span class="site-profile-icon" id="siteProfileIcon"><svg class="svg-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></span>
             <span class="site-profile-label" id="siteProfileLabel">Chung</span>
           </button>
-          <button class="btn-site-del" id="siteProfileDelBtn" title="Xóa cấu hình riêng, dùng cấu hình chung" style="display: none;">✕</button>
+          <button class="btn-site-del" id="siteProfileDelBtn" title="Xóa cấu hình riêng, dùng cấu hình chung" style="display: none;"><svg class="svg-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
       </div>
     </div>
@@ -81,7 +81,7 @@
     <!-- AI Auto-Genre EQ Bar -->
     <div class="ai-auto-eq-bar" id="aiAutoEqBar">
       <div class="ai-badge" id="aiGenreBadge" title="Trạng thái tự động nhận diện thể loại AI (Hybrid FFT + Metadata)">
-        <span class="ai-sparkle">✨</span>
+        <span class="ai-sparkle"><svg class="svg-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg></span>
         <span class="ai-genre-name" id="aiGenreName">AI Auto-EQ: Đang chờ</span>
       </div>
       <div class="ai-toggle-wrapper">
@@ -95,9 +95,9 @@
 
     <!-- Tabs Nav -->
     <div class="tabs-nav">
-      <button class="tab-btn active" data-tab="eq">🎛️ Equalizer</button>
-      <button class="tab-btn" data-tab="effects">✨ Studio Effects</button>
-      <button class="tab-btn" data-tab="presets">📁 Presets</button>
+      <button class="tab-btn active" data-tab="eq"><svg class="svg-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Equalizer</button>
+      <button class="tab-btn" data-tab="effects"><svg class="svg-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> Studio Effects</button>
+      <button class="tab-btn" data-tab="presets"><svg class="svg-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg> Presets</button>
     </div>
 
     <!-- Tab 1: Equalizer -->
@@ -106,12 +106,12 @@
       <div class="volume-section">
         <div class="volume-header">
           <div class="volume-title" id="muteToggleBtn" title="Click để Mute / Bật tiếng (Phím M)">
-            <span class="vol-icon" id="volumeIcon">🔊</span>
+            <span class="vol-icon" id="volumeIcon"><svg class="svg-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span>
             <span class="vol-label">Master Volume</span>
           </div>
           <div class="volume-header-right">
             <button class="btn-boost-badge" id="boostToggleBtn" title="Khuếch đại âm lượng an toàn cho video/nhạc quá nhỏ tiếng (+6dB)">
-              <span class="boost-icon">⚡</span>
+              <span class="boost-icon"><svg class="svg-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
               <span class="boost-label">Boost</span>
             </button>
             <span class="volume-value-display" id="volumeDisplay">100%</span>
@@ -133,13 +133,13 @@
       <div class="preset-section">
         <div class="preset-select-wrapper">
           <select class="preset-select" id="presetSelect">
-            <optgroup label="✨ AI Auto-EQ Tự động" id="aiPresetOptgroup" style="display: none;">
-              <option value="ai-active" id="aiPresetOption">✨ AI Auto: Đang nhận diện...</option>
+            <optgroup label="AI Auto-EQ Tự động" id="aiPresetOptgroup" style="display: none;">
+              <option value="ai-active" id="aiPresetOption">AI Auto: Đang nhận diện...</option>
             </optgroup>
-            <option value="custom" id="customPresetOption" style="display: none;">⚙️ Tùy chỉnh cá nhân (Custom)</option>
-            <optgroup label="⚡ Zyno Signature">
-              <option value="zyno-signature">⚡ Zyno Studio Signature</option>
-              <option value="zyno-sub-bass">🎧 Zyno Sub-Bass Club</option>
+            <option value="custom" id="customPresetOption" style="display: none;">Tùy chỉnh cá nhân (Custom)</option>
+            <optgroup label="Zyno Signature">
+              <option value="zyno-signature">Zyno Studio Signature</option>
+              <option value="zyno-sub-bass">Zyno Sub-Bass Club</option>
             </optgroup>
             <optgroup label="Cơ bản Studio">
               <option value="flat">Flat Studio (Cân bằng)</option>
@@ -193,15 +193,15 @@
       <div class="equalizer-section">
         <div class="eq-header">
           <div class="eq-title-wrap">
-            <h3>🎚️ 10-Band Studio DSP</h3>
+            <h3><svg class="svg-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="10" r="2"/><circle cx="20" cy="14" r="2"/></svg> 10-Band Studio DSP</h3>
             <span class="eq-subtext">32Hz - 16kHz</span>
           </div>
           <div class="eq-header-actions">
             <div class="view-mode-group">
-              <button class="btn-view-mode active" id="viewModeKnobsBtn" title="Chế độ Núm vặn Knobs">🎛️ Knobs</button>
-              <button class="btn-view-mode" id="viewModeGraphBtn" title="Chế độ Đồ thị tương tác Studio Curve">📈 Curve DSP</button>
+              <button class="btn-view-mode active" id="viewModeKnobsBtn" title="Chế độ Núm vặn Knobs"><svg class="svg-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg> Knobs</button>
+              <button class="btn-view-mode" id="viewModeGraphBtn" title="Chế độ Đồ thị tương tác Studio Curve"><svg class="svg-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Curve DSP</button>
             </div>
-            <button class="btn-flat-eq" id="flatEqBtn" title="Đặt lại Flat (R)">⚖️ Flat</button>
+            <button class="btn-flat-eq" id="flatEqBtn" title="Đặt lại Flat (R)"><svg class="svg-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/></svg> Flat</button>
           </div>
         </div>
 
@@ -239,13 +239,13 @@
       <div class="presets-container">
         <!-- Search Preset -->
         <div class="preset-search-box">
-          <input type="text" id="presetSearchInput" placeholder="🔍 Tìm kiếm nhanh preset..." autocomplete="off">
+          <input type="text" id="presetSearchInput" placeholder="Tìm kiếm nhanh preset..." autocomplete="off">
         </div>
 
         <!-- User Presets -->
         <div class="user-presets-section">
           <div class="section-header">
-            <h3>⭐ Preset cá nhân của bạn</h3>
+            <h3><svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Preset cá nhân của bạn</h3>
             <button class="btn-icon-small" id="savePresetBtn" title="Lưu cấu hình hiện tại thành Preset">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19"/>
@@ -259,7 +259,7 @@
         <!-- Site Profiles -->
         <div class="site-presets-section">
           <div class="section-header">
-            <h3>🌐 Cài đặt tự động theo Trang web</h3>
+            <h3><svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg> Cài đặt tự động theo Trang web</h3>
           </div>
           <div class="site-presets-list" id="sitePresetsList"></div>
         </div>
@@ -292,7 +292,7 @@
     <!-- Save Preset Modal -->
     <div class="modal-overlay" id="savePresetModal" style="display: none;">
       <div class="modal">
-        <h3>💾 Lưu Preset mới</h3>
+        <h3><svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Lưu Preset mới</h3>
         <input type="text" id="presetNameInput" placeholder="Nhập tên preset..." maxlength="32">
         <div class="modal-options">
           <label class="checkbox-label">
@@ -314,7 +314,7 @@
     <!-- Settings Modal with Shortcuts -->
     <div class="modal-overlay" id="settingsModal" style="display: none;">
       <div class="modal modal-large">
-        <h3>⚙️ Cài đặt & Phím tắt</h3>
+        <h3><svg class="svg-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> Cài đặt & Phím tắt</h3>
         <div class="settings-content">
           <div class="setting-item">
             <span>Tự động áp dụng theo site</span>
@@ -348,7 +348,7 @@
 
           <!-- Shortcuts List -->
           <div class="shortcuts-group">
-            <span class="shortcuts-title">⌨️ Phím tắt nhanh:</span>
+            <span class="shortcuts-title"><svg class="svg-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M7 16h10"/></svg> Phím tắt nhanh:</span>
             <div class="shortcut-row"><span>Bật/Tắt Audio</span><kbd>Space</kbd></div>
             <div class="shortcut-row"><span>Tăng / Giảm Volume</span><kbd>↑</kbd> <kbd>↓</kbd></div>
             <div class="shortcut-row"><span>Mute / Bật tiếng</span><kbd>M</kbd></div>
@@ -373,7 +373,7 @@
         </svg>
         Zyno
       </a>
-      <div class="footer-credit">Zyno Audio Equalizer & Booster Pro v3.0 • xuantruongg03</div>
+      <div class="footer-credit">Zyno Audio Equalizer & Booster Pro v3.0</div>
     </footer>
   </div>
 

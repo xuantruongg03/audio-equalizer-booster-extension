@@ -9,6 +9,7 @@ import { createVisualizer } from './modules/visualizer.js';
 import { SiteSettingsManager, getDomain, createSavedSitesList } from './modules/siteSettings.js';
 import { createDspGraph } from './modules/dspGraph.js';
 import { createDspStrip } from './modules/dspStrip.js';
+import { icon, getVolumeIcon } from './modules/icons.js';
 
 // ===================== STATE =====================
 let currentSettings = { ...DEFAULT_SETTINGS, bands: getFlatBands() };
@@ -414,7 +415,7 @@ function generateUserPresetsList(filterText = '') {
     if (presets.length === 0) {
         userPresetsList.innerHTML = `
             <div class="no-presets">
-                <span>📭</span>
+                <span class="empty-icon">${icon('inbox', 26)}</span>
                 <p>${filterText ? 'Không tìm thấy preset phù hợp.' : 'Chưa có preset. Nhấn + để lưu profile của bạn.'}</p>
             </div>
         `;
@@ -426,10 +427,10 @@ function generateUserPresetsList(filterText = '') {
         item.className = 'preset-item';
         item.innerHTML = `
             <div class="preset-item-info">
-                <span class="preset-item-star">⭐</span>
+                <span class="preset-item-star">${icon('star', 12)}</span>
                 <span class="preset-item-name">${preset.name}</span>
             </div>
-            <button class="preset-item-delete" data-key="${key}" title="Xóa preset này">×</button>
+            <button class="preset-item-delete" data-key="${key}" title="Xóa preset này">${icon('trash-2', 12)}</button>
         `;
         item.addEventListener('click', (e) => {
             if (!e.target.classList.contains('preset-item-delete')) {
@@ -651,7 +652,7 @@ function setupEventListeners() {
                 // Instantly revert to flat curve or site profile so turning OFF is audibly and visibly clear!
                 const domain = currentDomain;
                 const hasSite = domain && siteManager.hasSiteSettings(domain);
-                const siteConf = hasSite ? siteManager.getSiteSettings(domain) : null;
+                const siteConf = hasSite ? siteManager.getForSite(domain) : null;
 
                 if (siteConf && siteConf.bands) {
                     currentSettings.bands = { ...siteConf.bands };
@@ -778,7 +779,7 @@ function toggleBoost() {
     const mult = currentSettings.boostMultiplier || 2.0;
     const label = mult === 4.0 ? '+12dB (4x)' : '+6dB (2x)';
     const msg = currentSettings.boostEnabled 
-        ? `⚡ Đã bật Khuyếch đại âm lượng (${label})` 
+        ? `Đã bật Khuyếch đại âm lượng (${label})` 
         : `Đã tắt Khuyếch đại âm lượng`;
     showToast(msg, currentSettings.boostEnabled ? 'success' : 'info');
 }
@@ -790,8 +791,8 @@ function updateBoostUI() {
     const mult = currentSettings.boostMultiplier || 2.0;
     const label = mult === 4.0 ? '+12dB' : '+6dB';
     boostToggleBtn.innerHTML = isBoost
-        ? `<span class="boost-icon">⚡</span><span class="boost-label">Boost ${label}</span>`
-        : `<span class="boost-icon">⚡</span><span class="boost-label">Boost</span>`;
+        ? `${icon('zap', 11, 'boost-icon')}<span class="boost-label">Boost ${label}</span>`
+        : `${icon('zap', 11, 'boost-icon')}<span class="boost-label">Boost</span>`;
 }
 
 function handleMaxVolumeLimitChange() {
@@ -883,7 +884,7 @@ function handleVolumeSlider() {
     volumeDisplay.textContent = `${value}%`;
     isMuted = value === 0;
     if (volumeIcon) {
-        volumeIcon.textContent = value === 0 ? '🔇' : value < 40 ? '🔉' : '🔊';
+        volumeIcon.innerHTML = getVolumeIcon(value, isMuted);
     }
 
     // Update dynamic track gradient (0-100%)
@@ -992,9 +993,12 @@ async function handleSaveSite() {
     if (!currentDomain) return;
     await siteManager.saveForSite(currentDomain, currentSettings);
     generateSitePresetsList();
-    saveSiteBtn.textContent = '✅';
+    if (saveSiteBtn) saveSiteBtn.innerHTML = icon('check', 13);
     showToast(`Đã lưu cấu hình cho ${currentDomain}`, 'success');
-    setTimeout(() => { saveSiteBtn.textContent = '💾'; }, 1800);
+    if (saveSiteBtn) {
+        setTimeout(() => { saveSiteBtn.innerHTML = icon('save', 13); }, 1800);
+    }
+    updateSiteProfileUI();
 }
 
 async function handleSavePreset() {
@@ -1049,7 +1053,8 @@ async function applyUserPreset(key) {
     dspStrip?.setMasterValues({
         pan: currentSettings.pan,
         preamp: currentSettings.preamp,
-        mono: currentSettings.mono
+        mono: currentSettings.mono,
+        range: currentSettings.range
     });
     if (preset.effects) {
         currentSettings.effects = { ...preset.effects };
@@ -1103,13 +1108,13 @@ function updateSiteProfileUI() {
     const hasCustom = siteManager.hasSiteSettings(currentDomain);
     if (hasCustom) {
         siteProfileBtn.classList.add('active');
-        if (siteProfileIcon) siteProfileIcon.textContent = '⭐';
+        if (siteProfileIcon) siteProfileIcon.innerHTML = icon('star', 12);
         if (siteProfileLabel) siteProfileLabel.textContent = `Riêng: ${currentDomain}`;
         siteProfileBtn.title = `Đang áp dụng cấu hình riêng cho ${currentDomain}. Click để cập nhật lại.`;
         if (siteProfileDelBtn) siteProfileDelBtn.style.display = 'inline-flex';
     } else {
         siteProfileBtn.classList.remove('active');
-        if (siteProfileIcon) siteProfileIcon.textContent = '🌐';
+        if (siteProfileIcon) siteProfileIcon.innerHTML = icon('globe', 12);
         if (siteProfileLabel) siteProfileLabel.textContent = 'Chung (Mặc định)';
         siteProfileBtn.title = `Click để tạo cấu hình âm thanh riêng cho ${currentDomain}`;
         if (siteProfileDelBtn) siteProfileDelBtn.style.display = 'none';
@@ -1138,10 +1143,22 @@ function applySettings(settings) {
         currentSettings.bandParams = { ...settings.bandParams };
         dspGraph?.updateParams(settings.bandParams);
     }
+    if (settings.boostEnabled !== undefined) {
+        currentSettings.boostEnabled = !!settings.boostEnabled;
+        updateBoostUI();
+    }
+    if (settings.boostMultiplier !== undefined) {
+        currentSettings.boostMultiplier = settings.boostMultiplier;
+        updateBoostUI();
+        if (maxVolumeLimitSelect) {
+            maxVolumeLimitSelect.value = settings.boostMultiplier === 4.0 ? '400' : '200';
+        }
+    }
     dspStrip?.setMasterValues({
         pan: currentSettings.pan,
         preamp: currentSettings.preamp,
-        mono: currentSettings.mono
+        mono: currentSettings.mono,
+        range: currentSettings.range
     });
     if (settings.effects) {
         currentSettings.effects = { ...settings.effects };
@@ -1198,7 +1215,7 @@ function applyAiGenreToUI(profile, confidence = 0.95, metaMatched = true) {
     // Sync Preset dropdown to show AI Active genre instead of Flat/stale preset
     if (aiPresetOptgroup && aiPresetOption) {
         aiPresetOptgroup.style.display = 'block';
-        aiPresetOption.textContent = `✨ AI: ${profile.name}`;
+        aiPresetOption.textContent = `AI: ${profile.name}`;
         presetSelect.value = 'ai-active';
         currentSettings.preset = 'ai-active';
     }
@@ -1248,7 +1265,7 @@ function updateAiGenreBadge(profile, confidence, metaMatched) {
     if (!aiGenreName || !aiAutoEqBar) return;
     const confPct = Math.round((confidence || 0.8) * 100);
     const sourceTag = metaMatched ? 'Hybrid' : 'FFT';
-    aiGenreName.textContent = `${profile.icon || '🎵'} ${profile.name} (${confPct}% ${sourceTag})`;
+    aiGenreName.innerHTML = `${icon(profile.iconName || 'sparkles', 12)} <span>${profile.name} (${confPct}% ${sourceTag})</span>`;
     aiAutoEqBar.classList.add('active');
 }
 
@@ -1306,7 +1323,9 @@ function handleExport() {
             pan: currentSettings.pan,
             mono: currentSettings.mono,
             range: currentSettings.range,
-            bandParams: currentSettings.bandParams
+            bandParams: currentSettings.bandParams,
+            boostEnabled: !!currentSettings.boostEnabled,
+            boostMultiplier: currentSettings.boostMultiplier || 2.0
         },
         userPresets: { ...userPresets },
         siteSettings: siteManager.siteSettings
@@ -1474,7 +1493,7 @@ function updateStatus(isActive) {
         if (currentSettings.preset === 'ai-active') {
             const domain = currentDomain;
             const hasSite = domain && siteManager.hasSiteSettings(domain);
-            const siteConf = hasSite ? siteManager.getSiteSettings(domain) : null;
+            const siteConf = hasSite ? siteManager.getForSite(domain) : null;
             if (siteConf && siteConf.bands) {
                 currentSettings.bands = { ...siteConf.bands };
                 currentSettings.preset = siteConf.preset || 'flat';
@@ -1573,10 +1592,16 @@ function updateUI() {
     updateEQKnobs();
 
     // DSP Components Master Sync
+    updateBoostUI();
+    if (maxVolumeLimitSelect) {
+        const mult = currentSettings.boostMultiplier || 2.0;
+        maxVolumeLimitSelect.value = mult === 4.0 ? '400' : '200';
+    }
     dspStrip?.setMasterValues({
         pan: currentSettings.pan,
         preamp: currentSettings.preamp,
-        mono: currentSettings.mono
+        mono: currentSettings.mono,
+        range: currentSettings.range
     });
     dspGraph?.updateBands(currentSettings.bands);
     dspGraph?.updateParams(currentSettings.bandParams || {});
